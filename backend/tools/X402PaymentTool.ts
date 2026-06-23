@@ -48,7 +48,7 @@ export class X402PaymentTool {
   private paymentTool: StellarPaymentTool;
   private keypair: Keypair;
 
-  constructor(secretKey: string = config.AGENT_SECRET_KEY) {
+  constructor(secretKey: string = config.agentKeypair().secret()) {
     this.keypair = Keypair.fromSecret(secretKey);
     this.paymentTool = new StellarPaymentTool(secretKey);
   }

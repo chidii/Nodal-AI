@@ -84,11 +84,10 @@ We use `Vitest` to ensure the entire flow—from AI reasoning to network settlem
 ---
 
 ##  Security Policy
-Security is the foundation of PayFi. Nodal AI enforces:
-*   **Zero Hardcoding:** All sensitive credentials are managed via environment variables.
-*   **Transaction Simulation:** All Soroban transactions are prepared and simulated (`prepareSorobanTx`) prior to submission.
-*   **Challenge Validation:** x402 challenges are strictly validated for schema and expiry before any payment is triggered.
-*   **Resilient RPC:** Built-in exponential back-off retries for all network requests.
+
+Security is the foundation of PayFi. See [SECURITY.md](./SECURITY.md) for the full responsible disclosure policy, response SLAs, core security invariants, and secret management guidelines.
+
+To report a vulnerability privately, use [GitHub Security Advisories](https://github.com/Dami24-hub/nodal-ai/security/advisories/new).
 
 ---
 
