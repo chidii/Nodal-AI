@@ -8,6 +8,7 @@
 
 import {
   Keypair,
+  Horizon,
   Networks,
   TransactionBuilder,
   Operation,
@@ -60,7 +61,9 @@ export class StellarPaymentTool {
    * Execute a payment.
    * Steps: validate → build → simulate (fee bump check) → sign → submit
    */
-  async execute(rawInput: unknown): Promise<{ txHash: string; ledger: number }> {
+  async execute(
+    rawInput: unknown
+  ): Promise<{ txHash: string; ledger: number }> {
     // 1. Validate input
     const input = PaymentInputSchema.parse(rawInput);
 
@@ -85,18 +88,18 @@ export class StellarPaymentTool {
           amount: input.amount,
         })
       )
-      .setTimeout(30);
+    
 
     if (input.memo) {
       txBuilder.addMemo(Memo.text(input.memo));
     }
 
-    const tx = txBuilder.build();
+const tx = txBuilder.setTimeout(30).build();
 
     // 5. Fee estimation / simulation via Horizon dry-run
     //    (Horizon doesn't expose simulation like Soroban, so we validate
     //     the transaction envelope locally before submission)
-    console.log(`🔍 [StellarPaymentTool] Validating payment envelope...`);
+    console.log(` [StellarPaymentTool] Validating payment envelope...`);
     console.log(`   Source  : ${this.keypair.publicKey()}`);
     console.log(`   Dest    : ${input.destination}`);
     console.log(`   Amount  : ${input.amount} ${input.assetCode}`);
@@ -105,8 +108,11 @@ export class StellarPaymentTool {
     tx.sign(this.keypair);
 
     // 7. Submit
-    const result = await submitTransaction(tx) as { hash: string; ledger: number };
-
+    const result = (await submitTransaction(tx)) as {
+      hash: string;
+      ledger: number;
+    };
+    
     return {
       txHash: result.hash,
       ledger: result.ledger,

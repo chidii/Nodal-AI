@@ -7,6 +7,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { Keypair } from "@stellar/stellar-sdk";
 import { StellarPaymentTool } from "../backend/tools/StellarPaymentTool";
 import * as rpcClient from "../backend/rpc_client";
 
@@ -23,22 +24,27 @@ vi.mock("../backend/rpc_client", () => ({
 }));
 
 // ─── Mock config — isolate from real .env ─────────────────────────────────────
-vi.mock("../backend/config", () => ({
-  config: {
-    STELLAR_NETWORK: "testnet",
-    HORIZON_URL: "https://horizon-testnet.stellar.org",
-    SOROBAN_RPC_URL: "https://soroban-testnet.stellar.org",
-    AGENT_SECRET_KEY: "SBPTNBEQQVQD5NIPZTCXHKM5ZVONK2ENLP5DTZJBGSUPOPWQSIFWZKX",
-    X402_ASSET_CODE: "USDC",
-    X402_ASSET_ISSUER: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
-    MAX_RETRIES: 3,
-    RETRY_DELAY_MS: 100, // fast in tests
-  },
-}));
+vi.mock("../backend/config", () => {
+  const kp = Keypair.random();
+  return {
+    config: {
+      STELLAR_NETWORK: "testnet",
+      HORIZON_URL: "https://horizon-testnet.stellar.org",
+      SOROBAN_RPC_URL: "https://soroban-testnet.stellar.org",
+      AGENT_SECRET_KEY: kp.secret(),
+      AGENT_PUBLIC_KEY: kp.publicKey(),
+      agentKeypair: () => kp,
+      X402_ASSET_CODE: "USDC",
+      X402_ASSET_ISSUER: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+      MAX_RETRIES: 3,
+      RETRY_DELAY_MS: 100, // fast in tests
+    },
+  };
+});
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
-const TEST_SECRET = "SBPTNBEQQVQD5NIPZTCXHKM5ZVONK2ENLP5DTZJBGSUPOPWQSIFWZKX";
+// Use generated test secret (valid StrKey) from TEST_KEYPAIR
 // Valid 56-char G-address for destination
 const VALID_DEST   = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
 const VALID_ISSUER = "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN";
@@ -70,7 +76,9 @@ describe("StellarPaymentTool", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    tool = new StellarPaymentTool(TEST_SECRET);
+    tool = new StellarPaymentTool();
+    // Default: return a minimal valid account for TransactionBuilder
+    vi.mocked(rpcClient.loadAccount).mockResolvedValue(makeMockAccount(tool.publicKey) as any);
   });
 
   afterEach(() => {

@@ -12,7 +12,6 @@ import { X402PaymentTool } from "../backend/tools/X402PaymentTool";
 import { StellarPaymentTool } from "../backend/tools/StellarPaymentTool";
 
 // ─── Mock StellarPaymentTool so x402 tests don't hit Horizon ─────────────────
-
 vi.mock("../backend/tools/StellarPaymentTool", () => ({
   StellarPaymentTool: vi.fn().mockImplementation(() => ({
     publicKey: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
@@ -20,22 +19,30 @@ vi.mock("../backend/tools/StellarPaymentTool", () => ({
   })),
 }));
 
-vi.mock("../backend/config", () => ({
-  config: {
-    STELLAR_NETWORK: "testnet",
-    HORIZON_URL: "https://horizon-testnet.stellar.org",
-    SOROBAN_RPC_URL: "https://soroban-testnet.stellar.org",
-    AGENT_SECRET_KEY: "SBPTNBEQQVQD5NIPZTCXHKM5ZVONK2ENLP5DTZJBGSUPOPWQSIFWZKX",
-    X402_ASSET_CODE: "USDC",
-    X402_ASSET_ISSUER: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
-    MAX_RETRIES: 3,
-    RETRY_DELAY_MS: 100,
-  },
-}));
+import { X402PaymentTool } from "../backend/tools/X402PaymentTool";
+import { StellarPaymentTool } from "../backend/tools/StellarPaymentTool";
+
+vi.mock("../backend/config", () => {
+  const kp = Keypair.random();
+  return {
+    config: {
+      STELLAR_NETWORK: "testnet",
+      HORIZON_URL: "https://horizon-testnet.stellar.org",
+      SOROBAN_RPC_URL: "https://soroban-testnet.stellar.org",
+      AGENT_SECRET_KEY: kp.secret(),
+      AGENT_PUBLIC_KEY: kp.publicKey(),
+      agentKeypair: () => kp,
+      X402_ASSET_CODE: "USDC",
+      X402_ASSET_ISSUER: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+      MAX_RETRIES: 3,
+      RETRY_DELAY_MS: 100,
+    },
+  };
+});
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
-const TEST_SECRET   = "SBPTNBEQQVQD5NIPZTCXHKM5ZVONK2ENLP5DTZJBGSUPOPWQSIFWZKX";
+// Use generated test secret (valid StrKey) from TEST_KEYPAIR
 const VALID_PAY_TO  = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
 const VALID_ISSUER  = "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN";
 
@@ -57,10 +64,15 @@ const VALID_CHALLENGE = {
 
 describe("X402PaymentTool", () => {
   let tool: X402PaymentTool;
+  let mockPaymentTool: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    tool = new X402PaymentTool(TEST_SECRET);
+    mockPaymentTool = {
+      publicKey: VALID_PAY_TO,
+      execute: vi.fn().mockResolvedValue({ txHash: "x402_mock_tx_hash", ledger: 99 }),
+    };
+    tool = new X402PaymentTool(undefined, mockPaymentTool);
   });
 
   afterEach(() => {
@@ -160,7 +172,6 @@ describe("X402PaymentTool", () => {
     it("embeds nonce in memo as SHA-256 fingerprint (28 hex chars)", async () => {
       await tool.respond(VALID_CHALLENGE);
 
-      const mockPaymentTool = vi.mocked(StellarPaymentTool).mock.results[0].value;
       const callArg = mockPaymentTool.execute.mock.calls[0][0] as any;
 
       const expectedMemo = hash(Buffer.from(VALID_CHALLENGE.nonce)).toString("hex").slice(0, 28);
@@ -171,7 +182,6 @@ describe("X402PaymentTool", () => {
     it("delegates to StellarPaymentTool with correct destination and amount", async () => {
       await tool.respond(VALID_CHALLENGE);
 
-      const mockPaymentTool = vi.mocked(StellarPaymentTool).mock.results[0].value;
       expect(mockPaymentTool.execute).toHaveBeenCalledWith(
         expect.objectContaining({
           destination: VALID_CHALLENGE.payTo,
@@ -185,7 +195,6 @@ describe("X402PaymentTool", () => {
     it("omits assetIssuer for XLM payments", async () => {
       await tool.respond({ ...VALID_CHALLENGE, assetCode: "XLM" });
 
-      const mockPaymentTool = vi.mocked(StellarPaymentTool).mock.results[0].value;
       const callArg = mockPaymentTool.execute.mock.calls[0][0] as any;
       expect(callArg.assetIssuer).toBeUndefined();
     });
@@ -193,7 +202,6 @@ describe("X402PaymentTool", () => {
     it("calls StellarPaymentTool.execute exactly once per challenge", async () => {
       await tool.respond(VALID_CHALLENGE);
 
-      const mockPaymentTool = vi.mocked(StellarPaymentTool).mock.results[0].value;
       expect(mockPaymentTool.execute).toHaveBeenCalledOnce();
     });
   });
@@ -202,7 +210,7 @@ describe("X402PaymentTool", () => {
 
   describe("Payment failure propagation", () => {
     function getMockExecute() {
-      return vi.mocked(StellarPaymentTool).mock.results[0].value.execute as ReturnType<typeof vi.fn>;
+      return mockPaymentTool.execute as ReturnType<typeof vi.fn>;
     }
 
     it("propagates insufficient funds from underlying payment", async () => {

@@ -66,23 +66,22 @@ class StellarPaymentTool {
             destination: input.destination,
             asset,
             amount: input.amount,
-        }))
-            .setTimeout(30);
+        }));
         if (input.memo) {
             txBuilder.addMemo(stellar_sdk_1.Memo.text(input.memo));
         }
-        const tx = txBuilder.build();
+        const tx = txBuilder.setTimeout(30).build();
         // 5. Fee estimation / simulation via Horizon dry-run
         //    (Horizon doesn't expose simulation like Soroban, so we validate
         //     the transaction envelope locally before submission)
-        console.log(`🔍 [StellarPaymentTool] Validating payment envelope...`);
+        console.log(` [StellarPaymentTool] Validating payment envelope...`);
         console.log(`   Source  : ${this.keypair.publicKey()}`);
         console.log(`   Dest    : ${input.destination}`);
         console.log(`   Amount  : ${input.amount} ${input.assetCode}`);
         // 6. Sign
         tx.sign(this.keypair);
         // 7. Submit
-        const result = await (0, rpc_client_1.submitTransaction)(tx);
+        const result = (await (0, rpc_client_1.submitTransaction)(tx));
         return {
             txHash: result.hash,
             ledger: result.ledger,
