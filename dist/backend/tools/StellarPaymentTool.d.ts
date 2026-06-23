@@ -5,11 +5,10 @@
  * Architecture: Tool → simulate → sign → submit
  * Never broadcasts without a prior simulation pass.
  */
-import { Keypair } from "@stellar/stellar-sdk";
 import { z } from "zod";
 export declare const PaymentInputSchema: z.ZodObject<{
     destination: z.ZodString;
-    amount: z.ZodString;
+    amount: z.ZodEffects<z.ZodString, string, string>;
     assetCode: z.ZodDefault<z.ZodString>;
     assetIssuer: z.ZodOptional<z.ZodString>;
     memo: z.ZodOptional<z.ZodString>;
@@ -30,7 +29,7 @@ export type PaymentInput = z.infer<typeof PaymentInputSchema>;
 export declare class StellarPaymentTool {
     private keypair;
     private networkPassphrase;
-    constructor(keypairOrSecret?: Keypair | string);
+    constructor(secretKey?: string);
     get publicKey(): string;
     /**
      * Execute a payment.

@@ -223,6 +223,8 @@ function loadConfig(): AgentConfig {
 // ─── Singleton — validated once at import time ────────────────────────────────
 export const config: AgentConfig = loadConfig();
 
+export const MAINNET_SPENDING_CAP = 10000;
+
 // ─── Compile-time encapsulation guard ────────────────────────────────────────
 // AgentConfig intentionally omits AGENT_SECRET_KEY via Omit<RawEnv, "AGENT_SECRET_KEY">.
 // The line below must remain a type error; if tsc stops complaining here the

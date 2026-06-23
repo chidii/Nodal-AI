@@ -8,21 +8,17 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 const vitest_1 = require("vitest");
+const stellar_sdk_1 = require("@stellar/stellar-sdk");
 const X402PaymentTool_1 = require("../backend/tools/X402PaymentTool");
 const StellarPaymentTool_1 = require("../backend/tools/StellarPaymentTool");
 // ─── Mock StellarPaymentTool so x402 tests don't hit Horizon ─────────────────
-vitest_1.vi.mock("../backend/tools/StellarPaymentTool", () => ({
-    StellarPaymentTool: vitest_1.vi.fn().mockImplementation(() => ({
-        publicKey: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
-        execute: vitest_1.vi.fn().mockResolvedValue({ txHash: "x402_mock_tx_hash", ledger: 99 }),
-    })),
-}));
+vitest_1.vi.mock("../backend/tools/StellarPaymentTool");
 vitest_1.vi.mock("../backend/config", () => ({
     config: {
         STELLAR_NETWORK: "testnet",
         HORIZON_URL: "https://horizon-testnet.stellar.org",
         SOROBAN_RPC_URL: "https://soroban-testnet.stellar.org",
-        AGENT_SECRET_KEY: "SBPTNBEQQVQD5NIPZTCXHKM5ZVONK2ENLP5DTZJBGSUPOPWQSIFWZKX",
+        AGENT_SECRET_KEY: "SBZ7EYXHNB4WPPIWC5YAMH2U4L4QU6DKYXQWG4I55G6O4CLE4BBHCE73",
         X402_ASSET_CODE: "USDC",
         X402_ASSET_ISSUER: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
         MAX_RETRIES: 3,
@@ -30,7 +26,7 @@ vitest_1.vi.mock("../backend/config", () => ({
     },
 }));
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
-const TEST_SECRET = "SBPTNBEQQVQD5NIPZTCXHKM5ZVONK2ENLP5DTZJBGSUPOPWQSIFWZKX";
+const TEST_SECRET = "SBZ7EYXHNB4WPPIWC5YAMH2U4L4QU6DKYXQWG4I55G6O4CLE4BBHCE73";
 const VALID_PAY_TO = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
 const VALID_ISSUER = "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN";
 function futureIso(offsetMs = 60_000) {
@@ -50,6 +46,10 @@ const VALID_CHALLENGE = {
     let tool;
     (0, vitest_1.beforeEach)(() => {
         vitest_1.vi.clearAllMocks();
+        vitest_1.vi.mocked(StellarPaymentTool_1.StellarPaymentTool).mockImplementation(() => ({
+            publicKey: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
+            execute: vitest_1.vi.fn().mockResolvedValue({ txHash: "x402_mock_tx_hash", ledger: 99 }),
+        }));
         tool = new X402PaymentTool_1.X402PaymentTool(TEST_SECRET);
     });
     (0, vitest_1.afterEach)(() => {
@@ -116,11 +116,13 @@ const VALID_CHALLENGE = {
             (0, vitest_1.expect)(proof.signedAt).toBeTruthy();
             (0, vitest_1.expect)(new Date(proof.signedAt).getTime()).toBeLessThanOrEqual(Date.now());
         });
-        (0, vitest_1.it)("embeds nonce in memo (first 28 chars)", async () => {
+        (0, vitest_1.it)("embeds nonce in memo as SHA-256 fingerprint (28 hex chars)", async () => {
             await tool.respond(VALID_CHALLENGE);
             const mockPaymentTool = vitest_1.vi.mocked(StellarPaymentTool_1.StellarPaymentTool).mock.results[0].value;
             const callArg = mockPaymentTool.execute.mock.calls[0][0];
-            (0, vitest_1.expect)(callArg.memo).toBe(VALID_CHALLENGE.nonce.slice(0, 28));
+            const expectedMemo = (0, stellar_sdk_1.hash)(Buffer.from(VALID_CHALLENGE.nonce)).toString("hex").slice(0, 28);
+            (0, vitest_1.expect)(callArg.memo).toBe(expectedMemo);
+            (0, vitest_1.expect)(callArg.memo.length).toBe(28);
         });
         (0, vitest_1.it)("delegates to StellarPaymentTool with correct destination and amount", async () => {
             await tool.respond(VALID_CHALLENGE);

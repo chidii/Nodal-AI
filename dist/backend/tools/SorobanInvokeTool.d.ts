@@ -4,7 +4,7 @@
  *
  * MANDATORY simulation step enforced before any broadcast.
  */
-import { Keypair, xdr } from "@stellar/stellar-sdk";
+import { xdr } from "@stellar/stellar-sdk";
 import { z } from "zod";
 /**
  * Zod schema for {@link SorobanInvokeTool.execute} inputs.
@@ -68,7 +68,7 @@ export type SorobanInvokeInput = z.infer<typeof SorobanInvokeInputSchema>;
 export declare class SorobanInvokeTool {
     private keypair;
     private networkPassphrase;
-    constructor(keypairOrSecret?: Keypair | string);
+    constructor(secretKey?: string);
     /**
      * Invoke a Soroban smart contract function.
      *

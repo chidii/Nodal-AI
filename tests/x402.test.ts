@@ -12,37 +12,25 @@ import { X402PaymentTool } from "../backend/tools/X402PaymentTool";
 import { StellarPaymentTool } from "../backend/tools/StellarPaymentTool";
 
 // ─── Mock StellarPaymentTool so x402 tests don't hit Horizon ─────────────────
-vi.mock("../backend/tools/StellarPaymentTool", () => ({
-  StellarPaymentTool: vi.fn().mockImplementation(() => ({
-    publicKey: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
-    execute: vi.fn().mockResolvedValue({ txHash: "x402_mock_tx_hash", ledger: 99 }),
-  })),
+
+vi.mock("../backend/tools/StellarPaymentTool");
+
+vi.mock("../backend/config", () => ({
+  config: {
+    STELLAR_NETWORK: "testnet",
+    HORIZON_URL: "https://horizon-testnet.stellar.org",
+    SOROBAN_RPC_URL: "https://soroban-testnet.stellar.org",
+    AGENT_SECRET_KEY: "SBZ7EYXHNB4WPPIWC5YAMH2U4L4QU6DKYXQWG4I55G6O4CLE4BBHCE73",
+    X402_ASSET_CODE: "USDC",
+    X402_ASSET_ISSUER: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+    MAX_RETRIES: 3,
+    RETRY_DELAY_MS: 100,
+  },
 }));
-
-import { X402PaymentTool } from "../backend/tools/X402PaymentTool";
-import { StellarPaymentTool } from "../backend/tools/StellarPaymentTool";
-
-vi.mock("../backend/config", () => {
-  const kp = Keypair.random();
-  return {
-    config: {
-      STELLAR_NETWORK: "testnet",
-      HORIZON_URL: "https://horizon-testnet.stellar.org",
-      SOROBAN_RPC_URL: "https://soroban-testnet.stellar.org",
-      AGENT_SECRET_KEY: kp.secret(),
-      AGENT_PUBLIC_KEY: kp.publicKey(),
-      agentKeypair: () => kp,
-      X402_ASSET_CODE: "USDC",
-      X402_ASSET_ISSUER: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
-      MAX_RETRIES: 3,
-      RETRY_DELAY_MS: 100,
-    },
-  };
-});
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
-// Use generated test secret (valid StrKey) from TEST_KEYPAIR
+const TEST_SECRET   = "SBZ7EYXHNB4WPPIWC5YAMH2U4L4QU6DKYXQWG4I55G6O4CLE4BBHCE73";
 const VALID_PAY_TO  = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
 const VALID_ISSUER  = "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN";
 
@@ -68,11 +56,11 @@ describe("X402PaymentTool", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockPaymentTool = {
-      publicKey: VALID_PAY_TO,
+    vi.mocked(StellarPaymentTool).mockImplementation(() => ({
+      publicKey: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
       execute: vi.fn().mockResolvedValue({ txHash: "x402_mock_tx_hash", ledger: 99 }),
-    };
-    tool = new X402PaymentTool(undefined, mockPaymentTool);
+    } as any));
+    tool = new X402PaymentTool(TEST_SECRET);
   });
 
   afterEach(() => {

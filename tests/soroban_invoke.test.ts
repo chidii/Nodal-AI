@@ -25,28 +25,23 @@ vi.mock("../backend/rpc_client", () => ({
   },
 }));
 
-vi.mock("../backend/config", () => {
-  const kp = Keypair.random();
-  return {
-    config: {
-      STELLAR_NETWORK: "testnet",
-      HORIZON_URL: "https://horizon-testnet.stellar.org",
-      SOROBAN_RPC_URL: "https://soroban-testnet.stellar.org",
-      AGENT_SECRET_KEY: kp.secret(),
-      AGENT_PUBLIC_KEY: kp.publicKey(),
-      agentKeypair: () => kp,
-      X402_ASSET_CODE: "USDC",
-      X402_ASSET_ISSUER: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
-      MAX_RETRIES: 3,
-      RETRY_DELAY_MS: 100,
-    },
-  };
-});
+vi.mock("../backend/config", () => ({
+  config: {
+    STELLAR_NETWORK: "testnet",
+    HORIZON_URL: "https://horizon-testnet.stellar.org",
+    SOROBAN_RPC_URL: "https://soroban-testnet.stellar.org",
+    AGENT_SECRET_KEY: "SBZ7EYXHNB4WPPIWC5YAMH2U4L4QU6DKYXQWG4I55G6O4CLE4BBHCE73",
+    X402_ASSET_CODE: "USDC",
+    X402_ASSET_ISSUER: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+    MAX_RETRIES: 3,
+    RETRY_DELAY_MS: 100,
+  },
+}));
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
-// Use generated test secret (valid StrKey) from TEST_KEYPAIR
-const VALID_CONTRACT = "CBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
+const TEST_SECRET    = "SBZ7EYXHNB4WPPIWC5YAMH2U4L4QU6DKYXQWG4I55G6O4CLE4BBHCE73";
+const VALID_CONTRACT = "CDPVBHPSVYKWSI5ECEA4DASBG3RBNU5EHEE3DHNFX7RMBCZV66CSC7NH";
 
 function makeMockAccount(publicKey: string) {
   return {

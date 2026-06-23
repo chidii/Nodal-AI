@@ -39,7 +39,7 @@ vi.mock("../backend/config", () => ({
     // Set above MAINNET_SPENDING_CAP to exercise the secondary runtime guard
     AGENT_SPENDING_LIMIT: "15000",
     agentKeypair: () => ({
-      secret: () => "SBPTNBEQQVQD5NIPZTCXHKM5ZVONK2ENLP5DTZJBGSUPOPWQSIFWZKX",
+      secret: () => "SBZ7EYXHNB4WPPIWC5YAMH2U4L4QU6DKYXQWG4I55G6O4CLE4BBHCE73",
     }),
   },
   MAINNET_SPENDING_CAP: 10_000,

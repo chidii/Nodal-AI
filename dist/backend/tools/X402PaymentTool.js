@@ -23,19 +23,9 @@ exports.X402ChallengeSchema = zod_1.z.object({
 class X402PaymentTool {
     paymentTool;
     keypair;
-    horizonServer;
-    constructor(keypairOrSecret) {
-        if (keypairOrSecret instanceof stellar_sdk_1.Keypair) {
-            this.keypair = keypairOrSecret;
-        }
-        else if (typeof keypairOrSecret === "string") {
-            this.keypair = stellar_sdk_1.Keypair.fromSecret(keypairOrSecret);
-        }
-        else {
-            this.keypair = config_1.config.agentKeypair();
-        }
-        this.paymentTool = new StellarPaymentTool_1.StellarPaymentTool(this.keypair);
-        this.horizonServer = new stellar_sdk_1.Horizon.Server(config_1.config.HORIZON_URL);
+    constructor(secretKey = config_1.config.agentKeypair().secret()) {
+        this.keypair = stellar_sdk_1.Keypair.fromSecret(secretKey);
+        this.paymentTool = new StellarPaymentTool_1.StellarPaymentTool(secretKey);
     }
     async respond(rawChallenge) {
         const challenge = exports.X402ChallengeSchema.parse(rawChallenge);
@@ -47,7 +37,8 @@ class X402PaymentTool {
             amount: challenge.amount,
             assetCode: challenge.assetCode,
             assetIssuer: challenge.assetCode === "XLM" ? undefined : challenge.assetIssuer,
-            memo: challenge.nonce.slice(0, 28),
+            // SPEC: memo = SHA-256(nonce)[0:28 hex chars]; resource server must apply the same derivation to verify.
+            memo: (0, stellar_sdk_1.hash)(Buffer.from(challenge.nonce)).toString("hex").slice(0, 28),
         });
         return {
             protocol: "x402",

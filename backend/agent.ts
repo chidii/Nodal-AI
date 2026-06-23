@@ -11,7 +11,7 @@
  */
 
 import { EventEmitter } from "events";
-import { config } from "./config";
+import { config, MAINNET_SPENDING_CAP } from "./config";
 import { StellarPaymentTool } from "./tools/StellarPaymentTool";
 import { SorobanInvokeTool } from "./tools/SorobanInvokeTool";
 import { X402PaymentTool } from "./tools/X402PaymentTool";
@@ -62,6 +62,9 @@ export class PayFiAgent extends EventEmitter {
   private paymentTool: StellarPaymentTool;
   private sorobanTool: SorobanInvokeTool;
   private x402Tool: X402PaymentTool;
+
+  private activeTasks = 0;
+  private isDraining = false;
 
   // Bound handler references kept so destroy() can call .off() with the exact same function
   // reference — EventEmitter requires identity equality for removal.
@@ -129,6 +132,24 @@ export class PayFiAgent extends EventEmitter {
     console.log(`🔴 [PayFiAgent] Destroyed — all event listeners removed.`);
   }
 
+  drain(): void {
+    this.isDraining = true;
+    console.log("🟠 [PayFiAgent] Draining — rejecting new tasks.");
+  }
+
+  async waitForPendingTasks(): Promise<void> {
+    if (this.activeTasks === 0) return;
+    console.log(`⏳ [PayFiAgent] Waiting for ${this.activeTasks} pending tasks to finish...`);
+    return new Promise<void>((resolve) => {
+      const interval = setInterval(() => {
+        if (this.activeTasks === 0) {
+          clearInterval(interval);
+          resolve();
+        }
+      }, 100);
+    });
+  }
+
   /** Dispatch a task to the correct tool */
   async run(task: AgentTask): Promise<AgentResult> {
     if (this.isDraining) {
@@ -179,6 +200,8 @@ export class PayFiAgent extends EventEmitter {
       const result: AgentResult = { success: false, taskType: task.type, error: safe };
       this.emit("task:failed", result);
       return result;
+    } finally {
+      this.activeTasks--;
     }
   }
 }

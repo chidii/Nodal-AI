@@ -10,11 +10,10 @@
     "test:ts:watch": "vitest",
     "test:ts:coverage": "vitest run --coverage",
     "test:rust": "cargo test --manifest-path contracts/escrow/Cargo.toml",
+    "test:rust:coverage": "cargo tarpaulin --manifest-path contracts/escrow/Cargo.toml --out Html --output-dir coverage/rust",
     "test:all": "npm run test:rust && npm run test:ts",
     "lint": "eslint backend/**/*.ts tests/**/*.ts"
-},
-"@stellar/stellar-sdk": "^13.0.0",
-  
+  },
   "dependencies": {
     "@stellar/stellar-sdk": "^13.0.0",
     "axios": "^1.6.0",
