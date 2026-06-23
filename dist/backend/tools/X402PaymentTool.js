@@ -33,17 +33,9 @@ exports.X402ChallengeSchema = zod_1.z.object({
 class X402PaymentTool {
     paymentTool;
     keypair;
-    constructor(keypairOrSecret) {
-        if (keypairOrSecret instanceof stellar_sdk_1.Keypair) {
-            this.keypair = keypairOrSecret;
-        }
-        else if (typeof keypairOrSecret === 'string') {
-            this.keypair = stellar_sdk_1.Keypair.fromSecret(keypairOrSecret);
-        }
-        else {
-            this.keypair = config_1.config.agentKeypair();
-        }
-        this.paymentTool = new StellarPaymentTool_1.StellarPaymentTool(this.keypair);
+    constructor(secretKey = config_1.config.agentKeypair().secret()) {
+        this.keypair = stellar_sdk_1.Keypair.fromSecret(secretKey);
+        this.paymentTool = new StellarPaymentTool_1.StellarPaymentTool(secretKey);
     }
     /**
      * Respond to an x402 payment challenge.
@@ -66,7 +58,8 @@ class X402PaymentTool {
             amount: challenge.amount,
             assetCode: challenge.assetCode,
             assetIssuer: challenge.assetCode === "XLM" ? undefined : challenge.assetIssuer,
-            memo: challenge.nonce.slice(0, 28), // embed nonce in memo for auditability
+            // SPEC: memo = SHA-256(nonce)[0:28 hex chars]; resource server must apply the same derivation to verify.
+            memo: (0, stellar_sdk_1.hash)(Buffer.from(challenge.nonce)).toString("hex").slice(0, 28),
         });
         // 4. Build proof
         const proof = {

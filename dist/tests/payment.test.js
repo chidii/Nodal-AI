@@ -59,7 +59,7 @@ vitest_1.vi.mock("../backend/config", () => ({
         STELLAR_NETWORK: "testnet",
         HORIZON_URL: "https://horizon-testnet.stellar.org",
         SOROBAN_RPC_URL: "https://soroban-testnet.stellar.org",
-        AGENT_SECRET_KEY: "SBPTNBEQQVQD5NIPZTCXHKM5ZVONK2ENLP5DTZJBGSUPOPWQSIFWZKX",
+        AGENT_SECRET_KEY: "SBZ7EYXHNB4WPPIWC5YAMH2U4L4QU6DKYXQWG4I55G6O4CLE4BBHCE73",
         X402_ASSET_CODE: "USDC",
         X402_ASSET_ISSUER: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
         MAX_RETRIES: 3,
@@ -67,7 +67,7 @@ vitest_1.vi.mock("../backend/config", () => ({
     },
 }));
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
-const TEST_SECRET = "SBPTNBEQQVQD5NIPZTCXHKM5ZVONK2ENLP5DTZJBGSUPOPWQSIFWZKX";
+const TEST_SECRET = "SBZ7EYXHNB4WPPIWC5YAMH2U4L4QU6DKYXQWG4I55G6O4CLE4BBHCE73";
 // Valid 56-char G-address for destination
 const VALID_DEST = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
 const VALID_ISSUER = "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN";
@@ -234,6 +234,9 @@ function makeMockAccount(publicKey) {
     });
     // ── Retry exhaustion ────────────────────────────────────────────────────────
     (0, vitest_1.describe)("Retry exhaustion", () => {
+        (0, vitest_1.beforeEach)(() => {
+            vitest_1.vi.mocked(rpcClient.loadAccount).mockResolvedValue(makeMockAccount(tool.publicKey));
+        });
         (0, vitest_1.it)("throws after all retries are exhausted on loadAccount", async () => {
             // rpcClient.loadAccount is already wrapped in withRetry internally.
             // We simulate the final rejection reaching the tool.

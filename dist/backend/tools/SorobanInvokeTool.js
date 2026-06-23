@@ -64,16 +64,8 @@ exports.SorobanInvokeInputSchema = zod_1.z.object({
 class SorobanInvokeTool {
     keypair;
     networkPassphrase;
-    constructor(keypairOrSecret) {
-        if (keypairOrSecret instanceof stellar_sdk_1.Keypair) {
-            this.keypair = keypairOrSecret;
-        }
-        else if (typeof keypairOrSecret === 'string') {
-            this.keypair = stellar_sdk_1.Keypair.fromSecret(keypairOrSecret);
-        }
-        else {
-            this.keypair = config_1.config.agentKeypair();
-        }
+    constructor(secretKey = config_1.config.agentKeypair().secret()) {
+        this.keypair = stellar_sdk_1.Keypair.fromSecret(secretKey);
         this.networkPassphrase =
             config_1.config.STELLAR_NETWORK === "mainnet"
                 ? stellar_sdk_1.Networks.PUBLIC
@@ -175,7 +167,7 @@ class SorobanInvokeTool {
      * @throws {Error} If the transaction status is `FAILED` or the polling window
      *   is exhausted without reaching a terminal state.
      */
-    async pollForConfirmation(hash, maxAttempts = 10, intervalMs = 2000) {
+    async pollForConfirmation(hash, maxAttempts = 10, intervalMs = config_1.config.RETRY_DELAY_MS * 2) {
         for (let i = 0; i < maxAttempts; i++) {
             await new Promise((r) => setTimeout(r, intervalMs));
             const status = await rpc_client_1.sorobanServer.getTransaction(hash);

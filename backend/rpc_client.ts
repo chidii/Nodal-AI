@@ -37,10 +37,28 @@ export function DEFAULT_IS_RETRYABLE(err: unknown): boolean {
   return true;
 }
 
+/**
+ * Executes a promise-returning function with exponential back-off retry logic.
+ *
+ * @param fn - The asynchronous function to execute.
+ * @param retries - The maximum number of retry attempts. Defaults to config.MAX_RETRIES.
+ * @param delayMs - The initial delay in milliseconds before the first retry. Defaults to config.RETRY_DELAY_MS.
+ * @param isRetryable - A callback that checks if the error is transient/retryable. Defaults to DEFAULT_IS_RETRYABLE.
+ * @param maxDelayMs - The maximum delay limit in milliseconds for exponential back-off. Defaults to 30,000 ms.
+ * @returns A promise that resolves to the result of the function if it succeeds.
+ * @throws The last encountered error if all retry attempts fail, or the error immediately if it is not retryable.
+ *
+ * @remarks
+ * The function uses true exponential back-off:
+ * `delay = delayMs * 2^(attempt - 1)` capped at `maxDelayMs`.
+ * It also applies a ±20% random jitter to the capped delay to prevent thundering herd problems
+ * across multiple simultaneous agent instances.
+ */
 export async function withRetry<T>(
   fn: () => Promise<T>,
   retries = config.MAX_RETRIES,
   delayMs = config.RETRY_DELAY_MS,
+  isRetryable: (err: unknown) => boolean = DEFAULT_IS_RETRYABLE,
   maxDelayMs = 30_000
 ): Promise<T> {
   let lastErr: unknown;
@@ -68,14 +86,36 @@ export async function withRetry<T>(
 
 // ─── Horizon client ──────────────────────────────────────────────────────────
 
+/**
+ * Horizon server instance client.
+ *
+ * @remarks
+ * The `allowHttp` configuration flag is set to true only when `config.STELLAR_NETWORK` is not `"mainnet"`.
+ * On mainnet, this client strictly enforces secure HTTPS connections to protect transaction transmission.
+ */
 export const horizonServer = new Horizon.Server(config.HORIZON_URL, {
   allowHttp: config.STELLAR_NETWORK !== "mainnet",
 });
 
+/**
+ * Loads account details from the Horizon network for a given public key.
+ *
+ * @param publicKey - The 56-character Stellar public key (G-address) of the account.
+ * @returns A promise resolving to the Horizon account details.
+ * @throws An error if the account cannot be loaded after retries.
+ */
 export async function loadAccount(publicKey: string) {
   return withRetry(() => horizonServer.loadAccount(publicKey), config.MAX_RETRIES, config.RETRY_DELAY_MS, DEFAULT_IS_RETRYABLE);
 }
 
+/**
+ * Submits a signed transaction to the Stellar network via Horizon.
+ *
+ * @param tx - The Transaction or FeeBumpTransaction to submit.
+ * @returns A promise resolving to the Horizon transaction submission response.
+ * @throws A TimeoutError if submission does not complete within 30 seconds.
+ * @throws An error if the transaction payload is rejected or submission fails.
+ */
 export async function submitTransaction(tx: Transaction | FeeBumpTransaction) {
   // Guard: validate XDR encoding before initiating any network call
   validateXDR(tx.toEnvelope().toXDR("base64"));
@@ -100,6 +140,14 @@ export async function submitTransaction(tx: Transaction | FeeBumpTransaction) {
 
 // ─── Soroban RPC client ───────────────────────────────────────────────────────
 
+/**
+ * Soroban RPC server instance client.
+ *
+ * @remarks
+ * The `allowHttp` flag is configured dynamically: it allows HTTP for local development and testnets,
+ * but enforces HTTPS on mainnet. Caution: sending mainnet transaction payloads or queries over plain HTTP
+ * exposes sensitive network calls to eavesdropping or tampering.
+ */
 export const sorobanServer = new rpc.Server(config.SOROBAN_RPC_URL, {
   allowHttp: config.STELLAR_NETWORK !== "mainnet",
 });
@@ -108,6 +156,14 @@ export const sorobanServer = new rpc.Server(config.SOROBAN_RPC_URL, {
  * Simulate a Soroban transaction BEFORE broadcasting.
  * Returns the simulation result — callers MUST check for errors.
  */
+/**
+ * Simulate a Soroban transaction BEFORE broadcasting.
+ * Returns the simulation result — callers MUST check for errors.
+ *
+ * @param tx - The Transaction containing the Soroban invocations.
+ * @returns A promise resolving to the Soroban RPC simulation result.
+ * @throws An error if simulation RPC call fails after retries.
+ */
 export async function simulateSorobanTx(tx: Transaction) {
   return withRetry(() => sorobanServer.simulateTransaction(tx), config.MAX_RETRIES, config.RETRY_DELAY_MS, DEFAULT_IS_RETRYABLE);
 }
@@ -115,6 +171,12 @@ export async function simulateSorobanTx(tx: Transaction) {
 /**
  * Prepare (simulate + assemble) a Soroban transaction.
  * Throws if simulation indicates failure — safe guard before broadcast.
+ *
+ * @param tx - The Transaction to simulate and assemble.
+ * @returns A promise resolving to the assembled Transaction.
+ * @throws An Error if Soroban simulation fails. It checks the simulation response using the
+ * `rpc.Api.isSimulationError` type guard. Callers should expect a throw if there is an execution failure,
+ * insufficient budget, or invalid transaction envelope structure.
  */
 export async function prepareSorobanTx(tx: Transaction): Promise<Transaction> {
   const simResult = await simulateSorobanTx(tx);

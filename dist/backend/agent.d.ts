@@ -9,6 +9,7 @@
  *     the secret never lives on the config object itself.
  *   - The spending limit is enforced here before delegating to tools.
  */
+import { EventEmitter } from "events";
 export type TaskType = "stellar_payment" | "soroban_invoke" | "x402_respond";
 export interface AgentTask {
     type: TaskType;
@@ -20,11 +21,30 @@ export interface AgentResult {
     data?: unknown;
     error?: string;
 }
-export declare class PayFiAgent {
+export declare class PayFiAgent extends EventEmitter {
     private paymentTool;
     private sorobanTool;
     private x402Tool;
+    private activeTasks;
+    private isDraining;
+    private readonly _boundHandlers;
     constructor();
+    /**
+     * Detach all registered event listeners and release internal resources.
+     *
+     * Must be called by the lifecycle manager when an agent instance is
+     * decommissioned or stopped. Failure to call destroy() prevents the garbage
+     * collector from reclaiming this instance because EventEmitter holds a strong
+     * reference to every registered callback closure.
+     *
+     * Usage:
+     *   const agent = new PayFiAgent();
+     *   // ... use agent ...
+     *   agent.destroy(); // call when decommissioning
+     */
+    destroy(): void;
+    drain(): void;
+    waitForPendingTasks(): Promise<void>;
     /** Dispatch a task to the correct tool */
     run(task: AgentTask): Promise<AgentResult>;
 }

@@ -64,5 +64,6 @@ export interface AgentConfig extends Omit<RawEnv, "AGENT_SECRET_KEY" | "AGENT_PU
     readonly agentKeypair: () => Keypair;
 }
 export declare const config: AgentConfig;
+export declare const MAINNET_SPENDING_CAP = 10000;
 export {};
 //# sourceMappingURL=config.d.ts.map

@@ -11,7 +11,6 @@
  *  3. Constructs a signed Stellar payment
  *  4. Returns an x402-compliant payment proof
  */
-import { Keypair } from "@stellar/stellar-sdk";
 import { z } from "zod";
 /** Incoming payment challenge from a resource server */
 export declare const X402ChallengeSchema: z.ZodObject<{
@@ -52,7 +51,7 @@ export interface X402PaymentProof {
 export declare class X402PaymentTool {
     private paymentTool;
     private keypair;
-    constructor(keypairOrSecret?: Keypair | string);
+    constructor(secretKey?: string);
     /**
      * Respond to an x402 payment challenge.
      * Returns a proof object the resource server can verify on Horizon.

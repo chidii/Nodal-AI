@@ -95,9 +95,9 @@ USER nodal
 # Expose default port (override via env)
 EXPOSE 3000
 
-# Health check — lightweight ping against the agent HTTP endpoint (if enabled)
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD node -e "require('http').get('http://localhost:3000/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
+# Health check — verify configuration and startup logic compiles/resolves
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+    CMD node -e "require('./dist/backend/config')" || exit 1
 
 # Entry point
 CMD ["node", "dist/backend/agent.js"]

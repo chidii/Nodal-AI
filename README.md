@@ -83,6 +83,34 @@ We use `Vitest` to ensure the entire flow—from AI reasoning to network settlem
 
 ---
 
+## Docker
+
+Nodal AI includes a multi-stage Dockerfile and Docker Compose stack for local development, testing, and deployment.
+
+### Running with Docker Compose
+
+1. **Start the local Stellar network and Nodal agent:**
+   ```bash
+   docker-compose up --build
+   ```
+   This will spin up:
+   * `stellar-quickstart` at `http://localhost:8000` (Horizon) and `http://localhost:8001` (Soroban RPC).
+   * `agent` which automatically connects to the quickstart services once they are healthy.
+
+2. **Stop the services and clean up containers:**
+   ```bash
+   docker-compose down
+   ```
+
+### Run Tests in Docker
+
+You can run the test suite within an isolated test runner container:
+```bash
+docker-compose --profile test up --build
+```
+
+---
+
 ##  Security Policy
 
 Security is the foundation of PayFi. See [SECURITY.md](./SECURITY.md) for the full responsible disclosure policy, response SLAs, core security invariants, and secret management guidelines.

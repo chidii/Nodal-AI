@@ -15,7 +15,12 @@ const rpc_client_1 = require("../rpc_client");
 // ─── Input schema ─────────────────────────────────────────────────────────────
 exports.PaymentInputSchema = zod_1.z.object({
     destination: zod_1.z.string().length(56, "Invalid Stellar public key"),
-    amount: zod_1.z.string().regex(/^\d+(\.\d{1,7})?$/, "Amount must be a valid Stellar decimal"),
+    amount: zod_1.z
+        .string()
+        // Negative-lookahead rejects "0" and all zero-value decimals ("0.0", "0.0000000")
+        .regex(/^(?!0(\.0+)?$)\d+(\.\d{1,7})?$/, "Amount must be a valid Stellar decimal")
+        // Belt-and-suspenders guard: parseFloat catches any edge cases the regex misses
+        .refine((v) => parseFloat(v) > 0, "Amount must be greater than zero"),
     assetCode: zod_1.z.string().default("XLM"),
     assetIssuer: zod_1.z.string().optional(),
     memo: zod_1.z.string().max(28).optional(),
@@ -24,16 +29,8 @@ exports.PaymentInputSchema = zod_1.z.object({
 class StellarPaymentTool {
     keypair;
     networkPassphrase;
-    constructor(keypairOrSecret) {
-        if (keypairOrSecret instanceof stellar_sdk_1.Keypair) {
-            this.keypair = keypairOrSecret;
-        }
-        else if (typeof keypairOrSecret === 'string') {
-            this.keypair = stellar_sdk_1.Keypair.fromSecret(keypairOrSecret);
-        }
-        else {
-            this.keypair = config_1.config.agentKeypair();
-        }
+    constructor(secretKey = config_1.config.agentKeypair().secret()) {
+        this.keypair = stellar_sdk_1.Keypair.fromSecret(secretKey);
         this.networkPassphrase =
             config_1.config.STELLAR_NETWORK === "mainnet"
                 ? stellar_sdk_1.Networks.PUBLIC

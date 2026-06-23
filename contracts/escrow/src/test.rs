@@ -1,4 +1,4 @@
-﻿/*!
+/*!
  * contracts/escrow/src/test.rs
  *
  * Comprehensive Soroban test suite for the PayFi escrow contract.
@@ -17,18 +17,20 @@
 
 #[cfg(test)]
 mod tests {
+    extern crate std;
+
+    use crate::{EscrowContract, EscrowContractClient};
     use soroban_sdk::{
         testutils::{Address as _, Events, Ledger},
         token::{Client as TokenClient, StellarAssetClient},
         Address, Env,
     };
-    use crate::{EscrowContract, EscrowContractClient};
 
     const EXPIRY_OFFSET: u64 = 3_600;
 
     fn create_token<'a>(env: &'a Env, admin: &Address) -> (Address, TokenClient<'a>) {
         let token_id = env.register_stellar_asset_contract(admin.clone());
-        let token    = TokenClient::new(env, &token_id);
+        let token = TokenClient::new(env, &token_id);
         (token_id, token)
     }
 
@@ -39,19 +41,25 @@ mod tests {
         env.mock_all_auths();
         let depositor = Address::generate(&env);
         let recipient = Address::generate(&env);
-        let arbiter   = Address::generate(&env);
+        let arbiter = Address::generate(&env);
         let (token_id, token) = create_token(&env, &depositor);
         StellarAssetClient::new(&env, &token_id).mint(&depositor, &1_000);
         let contract_id = env.register_contract(None, EscrowContract);
         let client = EscrowContractClient::new(&env, &contract_id);
-        client.initialize(&depositor, &recipient, &arbiter, &token_id, &500,
-            &(env.ledger().timestamp() + EXPIRY_OFFSET));
-        assert_eq!(token.balance(&depositor),   500);
+        client.initialize(
+            &depositor,
+            &recipient,
+            &arbiter,
+            &token_id,
+            &500,
+            &(env.ledger().timestamp() + EXPIRY_OFFSET),
+        );
+        assert_eq!(token.balance(&depositor), 500);
         assert_eq!(token.balance(&contract_id), 500);
-        assert_eq!(token.balance(&recipient),     0);
+        assert_eq!(token.balance(&recipient), 0);
         client.release(&arbiter);
-        assert_eq!(token.balance(&recipient),   500);
-        assert_eq!(token.balance(&contract_id),   0);
+        assert_eq!(token.balance(&recipient), 500);
+        assert_eq!(token.balance(&contract_id), 0);
     }
 
     // 2. initialize -> refund after expiry
@@ -61,7 +69,7 @@ mod tests {
         env.mock_all_auths();
         let depositor = Address::generate(&env);
         let recipient = Address::generate(&env);
-        let arbiter   = Address::generate(&env);
+        let arbiter = Address::generate(&env);
         let (token_id, token) = create_token(&env, &depositor);
         StellarAssetClient::new(&env, &token_id).mint(&depositor, &1_000);
         let contract_id = env.register_contract(None, EscrowContract);
@@ -70,8 +78,8 @@ mod tests {
         client.initialize(&depositor, &recipient, &arbiter, &token_id, &500, &expiry);
         env.ledger().with_mut(|li| li.timestamp = expiry + 1);
         client.refund(&depositor);
-        assert_eq!(token.balance(&depositor),   1_000);
-        assert_eq!(token.balance(&contract_id),     0);
+        assert_eq!(token.balance(&depositor), 1_000);
+        assert_eq!(token.balance(&contract_id), 0);
     }
 
     // 3. Exact expiry boundary
@@ -81,7 +89,7 @@ mod tests {
         env.mock_all_auths();
         let depositor = Address::generate(&env);
         let recipient = Address::generate(&env);
-        let arbiter   = Address::generate(&env);
+        let arbiter = Address::generate(&env);
         let (token_id, token) = create_token(&env, &depositor);
         StellarAssetClient::new(&env, &token_id).mint(&depositor, &1_000);
         let contract_id = env.register_contract(None, EscrowContract);
@@ -100,18 +108,24 @@ mod tests {
         env.mock_all_auths();
         let depositor = Address::generate(&env);
         let recipient = Address::generate(&env);
-        let arbiter   = Address::generate(&env);
+        let arbiter = Address::generate(&env);
         let (token_id, token) = create_token(&env, &depositor);
         StellarAssetClient::new(&env, &token_id).mint(&depositor, &1_000);
         let contract_id = env.register_contract(None, EscrowContract);
         let client = EscrowContractClient::new(&env, &contract_id);
-        client.initialize(&depositor, &recipient, &arbiter, &token_id, &1_000,
-            &(env.ledger().timestamp() + EXPIRY_OFFSET));
-        assert_eq!(token.balance(&depositor),      0);
+        client.initialize(
+            &depositor,
+            &recipient,
+            &arbiter,
+            &token_id,
+            &1_000,
+            &(env.ledger().timestamp() + EXPIRY_OFFSET),
+        );
+        assert_eq!(token.balance(&depositor), 0);
         assert_eq!(token.balance(&contract_id), 1_000);
         client.release(&arbiter);
         assert_eq!(token.balance(&recipient), 1_000);
-        assert_eq!(token.balance(&contract_id),   0);
+        assert_eq!(token.balance(&contract_id), 0);
     }
 
     // 5. Depositor keeps remainder after partial lock
@@ -121,14 +135,20 @@ mod tests {
         env.mock_all_auths();
         let depositor = Address::generate(&env);
         let recipient = Address::generate(&env);
-        let arbiter   = Address::generate(&env);
+        let arbiter = Address::generate(&env);
         let (token_id, token) = create_token(&env, &depositor);
         StellarAssetClient::new(&env, &token_id).mint(&depositor, &1_000);
         let contract_id = env.register_contract(None, EscrowContract);
         let client = EscrowContractClient::new(&env, &contract_id);
-        client.initialize(&depositor, &recipient, &arbiter, &token_id, &300,
-            &(env.ledger().timestamp() + EXPIRY_OFFSET));
-        assert_eq!(token.balance(&depositor),   700);
+        client.initialize(
+            &depositor,
+            &recipient,
+            &arbiter,
+            &token_id,
+            &300,
+            &(env.ledger().timestamp() + EXPIRY_OFFSET),
+        );
+        assert_eq!(token.balance(&depositor), 700);
         assert_eq!(token.balance(&contract_id), 300);
     }
 
@@ -140,14 +160,22 @@ mod tests {
         env.mock_all_auths();
         let depositor = Address::generate(&env);
         let recipient = Address::generate(&env);
-        let arbiter   = Address::generate(&env);
+        let arbiter = Address::generate(&env);
         let (token_id, _) = create_token(&env, &depositor);
         StellarAssetClient::new(&env, &token_id).mint(&depositor, &1_000);
         let contract_id = env.register_contract(None, EscrowContract);
         let client = EscrowContractClient::new(&env, &contract_id);
-        client.initialize(&depositor, &recipient, &arbiter, &token_id, &500,
-            &(env.ledger().timestamp() + 9_999));
-        client.refund(&depositor);
+        client.initialize(
+            &depositor,
+            &recipient,
+            &arbiter,
+            &token_id,
+            &500,
+            &(env.ledger().timestamp() + 9_999),
+        );
+        env.as_contract(&contract_id, || {
+            EscrowContract::refund(env.clone(), depositor.clone());
+        });
     }
 
     // 7. double release panics
@@ -158,15 +186,23 @@ mod tests {
         env.mock_all_auths();
         let depositor = Address::generate(&env);
         let recipient = Address::generate(&env);
-        let arbiter   = Address::generate(&env);
+        let arbiter = Address::generate(&env);
         let (token_id, _) = create_token(&env, &depositor);
         StellarAssetClient::new(&env, &token_id).mint(&depositor, &1_000);
         let contract_id = env.register_contract(None, EscrowContract);
         let client = EscrowContractClient::new(&env, &contract_id);
-        client.initialize(&depositor, &recipient, &arbiter, &token_id, &500,
-            &(env.ledger().timestamp() + EXPIRY_OFFSET));
+        client.initialize(
+            &depositor,
+            &recipient,
+            &arbiter,
+            &token_id,
+            &500,
+            &(env.ledger().timestamp() + EXPIRY_OFFSET),
+        );
         client.release(&arbiter);
-        client.release(&arbiter);
+        env.as_contract(&contract_id, || {
+            EscrowContract::release(env.clone(), arbiter.clone());
+        });
     }
 
     // 8. refund after release panics
@@ -177,7 +213,7 @@ mod tests {
         env.mock_all_auths();
         let depositor = Address::generate(&env);
         let recipient = Address::generate(&env);
-        let arbiter   = Address::generate(&env);
+        let arbiter = Address::generate(&env);
         let (token_id, _) = create_token(&env, &depositor);
         StellarAssetClient::new(&env, &token_id).mint(&depositor, &1_000);
         let contract_id = env.register_contract(None, EscrowContract);
@@ -186,7 +222,9 @@ mod tests {
         client.initialize(&depositor, &recipient, &arbiter, &token_id, &500, &expiry);
         client.release(&arbiter);
         env.ledger().with_mut(|li| li.timestamp = expiry + 1);
-        client.refund(&depositor);
+        env.as_contract(&contract_id, || {
+            EscrowContract::refund(env.clone(), depositor.clone());
+        });
     }
 
     // 9. release after refund panics
@@ -197,7 +235,7 @@ mod tests {
         env.mock_all_auths();
         let depositor = Address::generate(&env);
         let recipient = Address::generate(&env);
-        let arbiter   = Address::generate(&env);
+        let arbiter = Address::generate(&env);
         let (token_id, _) = create_token(&env, &depositor);
         StellarAssetClient::new(&env, &token_id).mint(&depositor, &1_000);
         let contract_id = env.register_contract(None, EscrowContract);
@@ -206,7 +244,9 @@ mod tests {
         client.initialize(&depositor, &recipient, &arbiter, &token_id, &500, &expiry);
         env.ledger().with_mut(|li| li.timestamp = expiry + 1);
         client.refund(&depositor);
-        client.release(&arbiter);
+        env.as_contract(&contract_id, || {
+            EscrowContract::release(env.clone(), arbiter.clone());
+        });
     }
 
     // 10. re-initialization panics
@@ -217,14 +257,24 @@ mod tests {
         env.mock_all_auths();
         let depositor = Address::generate(&env);
         let recipient = Address::generate(&env);
-        let arbiter   = Address::generate(&env);
+        let arbiter = Address::generate(&env);
         let (token_id, _) = create_token(&env, &depositor);
         StellarAssetClient::new(&env, &token_id).mint(&depositor, &2_000);
         let contract_id = env.register_contract(None, EscrowContract);
         let client = EscrowContractClient::new(&env, &contract_id);
         let expiry = env.ledger().timestamp() + EXPIRY_OFFSET;
         client.initialize(&depositor, &recipient, &arbiter, &token_id, &500, &expiry);
-        client.initialize(&depositor, &recipient, &arbiter, &token_id, &500, &expiry);
+        env.as_contract(&contract_id, || {
+            EscrowContract::initialize(
+                env.clone(),
+                depositor.clone(),
+                recipient.clone(),
+                arbiter.clone(),
+                token_id.clone(),
+                500,
+                expiry,
+            );
+        });
     }
 
     // 11. zero amount panics
@@ -235,13 +285,22 @@ mod tests {
         env.mock_all_auths();
         let depositor = Address::generate(&env);
         let recipient = Address::generate(&env);
-        let arbiter   = Address::generate(&env);
+        let arbiter = Address::generate(&env);
         let (token_id, _) = create_token(&env, &depositor);
         StellarAssetClient::new(&env, &token_id).mint(&depositor, &1_000);
         let contract_id = env.register_contract(None, EscrowContract);
-        let client = EscrowContractClient::new(&env, &contract_id);
-        client.initialize(&depositor, &recipient, &arbiter, &token_id, &0,
-            &(env.ledger().timestamp() + EXPIRY_OFFSET));
+        let expiry = env.ledger().timestamp() + EXPIRY_OFFSET;
+        env.as_contract(&contract_id, || {
+            EscrowContract::initialize(
+                env.clone(),
+                depositor.clone(),
+                recipient.clone(),
+                arbiter.clone(),
+                token_id.clone(),
+                0,
+                expiry,
+            );
+        });
     }
 
     // 12. past expiry on init panics
@@ -249,47 +308,65 @@ mod tests {
     #[should_panic(expected = "escrow: expiry must be in the future")]
     fn test_past_expiry_on_init_panics() {
         let env = Env::default();
+        env.ledger().with_mut(|li| li.timestamp = 100);
         env.mock_all_auths();
         let depositor = Address::generate(&env);
         let recipient = Address::generate(&env);
-        let arbiter   = Address::generate(&env);
+        let arbiter = Address::generate(&env);
         let (token_id, _) = create_token(&env, &depositor);
         StellarAssetClient::new(&env, &token_id).mint(&depositor, &1_000);
         let contract_id = env.register_contract(None, EscrowContract);
-        let client = EscrowContractClient::new(&env, &contract_id);
-        client.initialize(&depositor, &recipient, &arbiter, &token_id, &500,
-            &(env.ledger().timestamp() - 1));
+        let expiry = env.ledger().timestamp() - 1;
+        env.as_contract(&contract_id, || {
+            EscrowContract::initialize(
+                env.clone(),
+                depositor.clone(),
+                recipient.clone(),
+                arbiter.clone(),
+                token_id.clone(),
+                500,
+                expiry,
+            );
+        });
     }
 
     // 13. unauthorized release panics
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "escrow: caller is not the arbiter")]
     fn test_unauthorized_release_panics() {
         let env = Env::default();
         env.mock_all_auths();
         let depositor = Address::generate(&env);
         let recipient = Address::generate(&env);
-        let arbiter   = Address::generate(&env);
-        let impostor  = Address::generate(&env);
+        let arbiter = Address::generate(&env);
+        let impostor = Address::generate(&env);
         let (token_id, _) = create_token(&env, &depositor);
         StellarAssetClient::new(&env, &token_id).mint(&depositor, &1_000);
         let contract_id = env.register_contract(None, EscrowContract);
         let client = EscrowContractClient::new(&env, &contract_id);
-        client.initialize(&depositor, &recipient, &arbiter, &token_id, &500,
-            &(env.ledger().timestamp() + EXPIRY_OFFSET));
-        client.release(&impostor);
+        client.initialize(
+            &depositor,
+            &recipient,
+            &arbiter,
+            &token_id,
+            &500,
+            &(env.ledger().timestamp() + EXPIRY_OFFSET),
+        );
+        env.as_contract(&contract_id, || {
+            EscrowContract::release(env.clone(), impostor.clone());
+        });
     }
 
     // 14. unauthorized refund panics
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "escrow: caller is not the depositor")]
     fn test_unauthorized_refund_panics() {
         let env = Env::default();
         env.mock_all_auths();
         let depositor = Address::generate(&env);
         let recipient = Address::generate(&env);
-        let arbiter   = Address::generate(&env);
-        let impostor  = Address::generate(&env);
+        let arbiter = Address::generate(&env);
+        let impostor = Address::generate(&env);
         let (token_id, _) = create_token(&env, &depositor);
         StellarAssetClient::new(&env, &token_id).mint(&depositor, &1_000);
         let contract_id = env.register_contract(None, EscrowContract);
@@ -297,7 +374,9 @@ mod tests {
         let expiry = env.ledger().timestamp() + 100;
         client.initialize(&depositor, &recipient, &arbiter, &token_id, &500, &expiry);
         env.ledger().with_mut(|li| li.timestamp = expiry + 1);
-        client.refund(&impostor);
+        env.as_contract(&contract_id, || {
+            EscrowContract::refund(env.clone(), impostor.clone());
+        });
     }
 
     // 15. "released" event is emitted
@@ -307,17 +386,23 @@ mod tests {
         env.mock_all_auths();
         let depositor = Address::generate(&env);
         let recipient = Address::generate(&env);
-        let arbiter   = Address::generate(&env);
+        let arbiter = Address::generate(&env);
         let (token_id, _) = create_token(&env, &depositor);
         StellarAssetClient::new(&env, &token_id).mint(&depositor, &1_000);
         let contract_id = env.register_contract(None, EscrowContract);
         let client = EscrowContractClient::new(&env, &contract_id);
-        client.initialize(&depositor, &recipient, &arbiter, &token_id, &500,
-            &(env.ledger().timestamp() + EXPIRY_OFFSET));
+        client.initialize(
+            &depositor,
+            &recipient,
+            &arbiter,
+            &token_id,
+            &500,
+            &(env.ledger().timestamp() + EXPIRY_OFFSET),
+        );
         client.release(&arbiter);
         let events = env.events().all();
         assert!(!events.is_empty());
-        assert!(format!("{:?}", events).contains("released"));
+        assert!(std::format!("{:?}", events).contains("released"));
     }
 
     // 16. "refunded" event is emitted
@@ -327,7 +412,7 @@ mod tests {
         env.mock_all_auths();
         let depositor = Address::generate(&env);
         let recipient = Address::generate(&env);
-        let arbiter   = Address::generate(&env);
+        let arbiter = Address::generate(&env);
         let (token_id, _) = create_token(&env, &depositor);
         StellarAssetClient::new(&env, &token_id).mint(&depositor, &1_000);
         let contract_id = env.register_contract(None, EscrowContract);
@@ -337,6 +422,6 @@ mod tests {
         env.ledger().with_mut(|li| li.timestamp = expiry + 1);
         client.refund(&depositor);
         let events = env.events().all();
-        assert!(format!("{:?}", events).contains("refunded"));
+        assert!(std::format!("{:?}", events).contains("refunded"));
     }
 }

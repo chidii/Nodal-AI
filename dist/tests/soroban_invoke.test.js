@@ -60,7 +60,7 @@ vitest_1.vi.mock("../backend/config", () => ({
         STELLAR_NETWORK: "testnet",
         HORIZON_URL: "https://horizon-testnet.stellar.org",
         SOROBAN_RPC_URL: "https://soroban-testnet.stellar.org",
-        AGENT_SECRET_KEY: "SBPTNBEQQVQD5NIPZTCXHKM5ZVONK2ENLP5DTZJBGSUPOPWQSIFWZKX",
+        AGENT_SECRET_KEY: "SBZ7EYXHNB4WPPIWC5YAMH2U4L4QU6DKYXQWG4I55G6O4CLE4BBHCE73",
         X402_ASSET_CODE: "USDC",
         X402_ASSET_ISSUER: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
         MAX_RETRIES: 3,
@@ -68,8 +68,8 @@ vitest_1.vi.mock("../backend/config", () => ({
     },
 }));
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
-const TEST_SECRET = "SBPTNBEQQVQD5NIPZTCXHKM5ZVONK2ENLP5DTZJBGSUPOPWQSIFWZKX";
-const VALID_CONTRACT = "CBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
+const TEST_SECRET = "SBZ7EYXHNB4WPPIWC5YAMH2U4L4QU6DKYXQWG4I55G6O4CLE4BBHCE73";
+const VALID_CONTRACT = "CDPVBHPSVYKWSI5ECEA4DASBG3RBNU5EHEE3DHNFX7RMBCZV66CSC7NH";
 function makeMockAccount(publicKey) {
     return {
         id: publicKey,
@@ -215,7 +215,7 @@ function makeMockAccount(publicKey) {
                 status: "NOT_FOUND",
             });
             await (0, vitest_1.expect)(tool.execute({ contractId: VALID_CONTRACT, method: "release", args: [] })).rejects.toThrow(/not confirmed within polling window/);
-        }, 60_000); // generous timeout for polling loop
+        }, 5_000); // RETRY_DELAY_MS=100 → intervalMs=200ms × 10 attempts ≈ 2s
     });
     // ── Network error handling ──────────────────────────────────────────────────
     (0, vitest_1.describe)("Network error handling", () => {

@@ -14,12 +14,11 @@
  *   - State transitions are enforced (no double-release / double-refund)
  */
 
-#![no_std]
+#![cfg_attr(not(test), no_std)]
+#![allow(unexpected_cfgs)]
 
 use soroban_sdk::{
-    contract, contractimpl, contracttype,
-    token::Client as TokenClient,
-    Address, Env, Symbol,
+    contract, contractimpl, contracttype, token::Client as TokenClient, Address, Env, Symbol,
 };
 
 // ─── Storage keys ─────────────────────────────────────────────────────────────
@@ -81,8 +80,12 @@ impl EscrowContract {
         );
 
         // Persist state
-        env.storage().instance().set(&DataKey::Depositor, &depositor);
-        env.storage().instance().set(&DataKey::Recipient, &recipient);
+        env.storage()
+            .instance()
+            .set(&DataKey::Depositor, &depositor);
+        env.storage()
+            .instance()
+            .set(&DataKey::Recipient, &recipient);
         env.storage().instance().set(&DataKey::Arbiter, &arbiter);
         env.storage().instance().set(&DataKey::Token, &token);
         env.storage().instance().set(&DataKey::Amount, &amount);
@@ -100,7 +103,10 @@ impl EscrowContract {
         arbiter.require_auth();
 
         let stored_arbiter: Address = env.storage().instance().get(&DataKey::Arbiter).unwrap();
-        assert!(arbiter == stored_arbiter, "escrow: caller is not the arbiter");
+        assert!(
+            arbiter == stored_arbiter,
+            "escrow: caller is not the arbiter"
+        );
 
         Self::assert_not_released(&env);
 
@@ -116,10 +122,8 @@ impl EscrowContract {
             &amount,
         );
 
-        env.events().publish(
-            (Symbol::new(&env, "released"),),
-            (recipient, amount),
-        );
+        env.events()
+            .publish((Symbol::new(&env, "released"),), (recipient, amount));
     }
 
     /// Refund depositor after expiry. Only callable by depositor.
@@ -127,7 +131,10 @@ impl EscrowContract {
         depositor.require_auth();
 
         let stored_depositor: Address = env.storage().instance().get(&DataKey::Depositor).unwrap();
-        assert!(depositor == stored_depositor, "escrow: caller is not the depositor");
+        assert!(
+            depositor == stored_depositor,
+            "escrow: caller is not the depositor"
+        );
 
         Self::assert_not_released(&env);
 
@@ -148,16 +155,21 @@ impl EscrowContract {
             &amount,
         );
 
-        env.events().publish(
-            (Symbol::new(&env, "refunded"),),
-            (depositor, amount),
-        );
+        env.events()
+            .publish((Symbol::new(&env, "refunded"),), (depositor, amount));
     }
 
     // ─── Internal helpers ────────────────────────────────────────────────────
 
     fn assert_not_released(env: &Env) {
-        let released: bool = env.storage().instance().get(&DataKey::Released).unwrap_or(false);
+        let released: bool = env
+            .storage()
+            .instance()
+            .get(&DataKey::Released)
+            .unwrap_or(false);
         assert!(!released, "escrow: funds already released or refunded");
     }
 }
+
+#[cfg(test)]
+mod test;
