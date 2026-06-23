@@ -11,6 +11,18 @@ import {
   FeeBumpTransaction,
 } from "@stellar/stellar-sdk";
 import { config } from "./config";
+import { validateXDR } from "./types/xdr";
+
+// ─── Timeout error ────────────────────────────────────────────────────────────
+
+export class TimeoutError extends Error {
+  constructor(ms: number) {
+    super(`Transaction Timeout: request did not complete within ${ms}ms`);
+    this.name = "TimeoutError";
+  }
+}
+
+const SUBMIT_TIMEOUT_MS = 30_000;
 
 // ─── Exponential back-off retry ─────────────────────────────────────────────
 
@@ -45,7 +57,25 @@ export async function loadAccount(publicKey: string) {
 }
 
 export async function submitTransaction(tx: Transaction | FeeBumpTransaction) {
-  return withRetry(() => horizonServer.submitTransaction(tx));
+  // Guard: validate XDR encoding before initiating any network call
+  validateXDR(tx.toEnvelope().toXDR("base64"));
+
+  return withRetry(() => {
+    const controller = new AbortController();
+    let timeoutId: ReturnType<typeof setTimeout>;
+
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => {
+        controller.abort();
+        reject(new TimeoutError(SUBMIT_TIMEOUT_MS));
+      }, SUBMIT_TIMEOUT_MS);
+    });
+
+    return Promise.race([
+      horizonServer.submitTransaction(tx),
+      timeoutPromise,
+    ]).finally(() => clearTimeout(timeoutId));
+  });
 }
 
 // ─── Soroban RPC client ───────────────────────────────────────────────────────
