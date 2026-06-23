@@ -10,7 +10,7 @@
  *   - The spending limit is enforced here before delegating to tools.
  */
 
-import { config } from "./config";
+import { config, MAINNET_SPENDING_CAP } from "./config";
 import { StellarPaymentTool } from "./tools/StellarPaymentTool";
 import { SorobanInvokeTool } from "./tools/SorobanInvokeTool";
 import { X402PaymentTool } from "./tools/X402PaymentTool";
@@ -45,6 +45,12 @@ function assertWithinSpendingLimit(amount: unknown): void {
     throw new Error(
       `Payment amount ${amount} ${config.X402_ASSET_CODE} exceeds ` +
       `AGENT_SPENDING_LIMIT of ${config.AGENT_SPENDING_LIMIT}`
+    );
+  }
+  if (!isNaN(parsed) && config.STELLAR_NETWORK === "mainnet" && parsed > MAINNET_SPENDING_CAP) {
+    throw new Error(
+      `Payment amount ${amount} ${config.X402_ASSET_CODE} exceeds ` +
+      `mainnet spending cap of ${MAINNET_SPENDING_CAP}`
     );
   }
 }

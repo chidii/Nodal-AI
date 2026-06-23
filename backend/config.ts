@@ -219,3 +219,6 @@ function loadConfig(): AgentConfig {
 
 // ─── Singleton — validated once at import time ────────────────────────────────
 export const config: AgentConfig = loadConfig();
+
+/** Absolute spending ceiling for mainnet — enforced both at startup and at runtime. */
+export const MAINNET_SPENDING_CAP = 10_000;
