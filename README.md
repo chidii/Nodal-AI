@@ -18,7 +18,7 @@ In the era of **PayFi**, payments are no longer just passive transfers they are 
 
 ##  Architecture
 
-Nodal AI is built on a clean, three-pillar separation of concerns:
+Nodal AI is built on a clean, three-pillar separation of concerns. For a deep dive into the system design, tool dispatch, simulation gates, and state machines, please read the [Architecture Guide](./ARCHITECTURE.md).
 
 ```text
 /

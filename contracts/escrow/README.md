@@ -1,0 +1,164 @@
+# Stellar PayFi Escrow Contract
+
+A production-grade, secure, and gas-efficient Soroban (Stellar) escrow smart contract designed for PayFi operations. The contract enforces state transitions, multi-party authorization, and time-locked balances.
+
+---
+
+## Storage Layout
+
+The contract stores its state in the persistent instance storage using the `DataKey` enum structure:
+
+| Key (`DataKey`) | Value Type | Description |
+| :--- | :--- | :--- |
+| `Depositor` | `Address` | The account that funds the escrow and is eligible for refunds after expiration. |
+| `Recipient` | `Address` | The destination account that receives the locked funds upon successful release. |
+| `Arbiter` | `Address` | The trusted third-party key responsible for authorising the release of funds. |
+| `Token` | `Address` | The contract address of the Stellar Asset Contract (SAC) token being held. |
+| `Amount` | `i128` | The amount of token locked (in stroop-equivalent decimal units). |
+| `Expiry` | `u64` | The Unix timestamp (seconds) after which a refund can be executed by the depositor. |
+| `Released` | `bool` | A boolean flag indicating if the escrow has been settled (released or refunded). |
+
+---
+
+## Lifecycle State Machine
+
+The contract transitions through three lifecycle states:
+
+```
+    [ Uninitialized ]
+           │
+           │  initialize() (locks tokens)
+           ▼
+       [ Active ]
+         ╱    ╲
+        ╱      ╲  refund() (depositor, if current_time >= expiry)
+       ╱        ╲
+      ╱          ▼
+     │       [ Settled ] (tokens returned to depositor)
+     │
+     │  release() (arbiter)
+     ▼
+ [ Settled ] (tokens sent to recipient)
+```
+
+1. **`Uninitialized`**: The contract has no active state. The `DataKey::Depositor` does not exist in instance storage.
+2. **`Active`**: The contract has been initialized. Funds are held in the contract account. `DataKey::Released` is `false`.
+3. **`Settled`**: The contract has been successfully resolved. Funds are transferred out, and `DataKey::Released` is updated to `true`.
+
+---
+
+## Public Functions & Authentication Requirements
+
+All public entry points are defined on the `EscrowContract` struct:
+
+### `initialize(env: Env, depositor: Address, recipient: Address, arbiter: Address, token: Address, amount: i128, expiry: u64)`
+- **Purpose**: Initialises state, asserts constraints, and pulls tokens from the depositor to lock them in the contract.
+- **Authorization**: Requires depositor signature (`depositor.require_auth()`).
+- **Validation**:
+  - `amount` must be greater than zero.
+  - `expiry` timestamp must be strictly in the future.
+
+### `release(env: Env, arbiter: Address)`
+- **Purpose**: Settles the escrow by transferring locked funds to the recipient.
+- **Authorization**: Requires arbiter signature (`arbiter.require_auth()`).
+- **Validation**:
+  - Only the registered arbiter can execute.
+  - Escrow must be in the `Active` state (not yet released or refunded).
+
+### `refund(env: Env, depositor: Address)`
+- **Purpose**: Reclaims locked funds back to the depositor if the expiration time has elapsed.
+- **Authorization**: Requires depositor signature (`depositor.require_auth()`).
+- **Validation**:
+  - Only the registered depositor can execute.
+  - Escrow must be in the `Active` state.
+  - Current ledger time must be greater than or equal to `expiry`.
+
+### `get_state(env: Env) -> EscrowState`
+- **Purpose**: Reads and returns the current lifecycle state of the escrow (`Uninitialized`, `Active`, or `Settled`).
+- **Authorization**: None (Read-only query).
+
+---
+
+## EscrowError Reference
+
+If an execution condition is violated, the contract panics with one of the following custom `EscrowError` variants:
+
+| Code | Variant | Description |
+| :--- | :--- | :--- |
+| `1` | `AlreadyInitialized` | Escrow state has already been initialized. |
+| `2` | `AmountNotPositive` | Amount to lock must be greater than 0. |
+| `3` | `ExpiryNotInFuture` | Expiry timestamp must be greater than the current ledger timestamp. |
+| `4` | `NotArbiter` | The calling address is not the stored arbiter. |
+| `5` | `NotDepositor` | The calling address is not the stored depositor. |
+| `6` | `NotExpired` | Attempted refund before the expiration timestamp. |
+| `7` | `AlreadySettled` | Escrow is already settled (funds were already released or refunded). |
+
+---
+
+## Cargo.toml Dependencies
+
+The contract specifies minimal, optimized dependencies in [Cargo.toml](file:///Users/owner/Documents/Code/drip/Nodal-AI/contracts/escrow/Cargo.toml):
+
+- **`soroban-sdk`**: The standard SDK for writing Smart Contracts on Stellar. The `alloc` feature enables dynamic allocation support.
+- **`testutils`**: Enables simulation, mocking, ledger manipulation, and event debugging inside the test environment.
+
+---
+
+## Deployment & Invocation Guide
+
+Follow these commands to build, deploy, and invoke the contract locally or on the testnet.
+
+### 1. Build the Contract
+Compile the Rust contract into optimized WebAssembly:
+```bash
+cargo build --target wasm32-unknown-unknown --release
+# Alternatively, use soroban contract build (if toolchain is installed):
+# soroban contract build
+```
+
+### 2. Deploy to Testnet
+Deploy the contract to the Stellar testnet and retrieve the contract ID:
+```bash
+soroban contract deploy \
+  --wasm target/wasm32-unknown-unknown/release/stellar_payfi_escrow.wasm \
+  --source-account my-keypair-name \
+  --network testnet
+```
+
+### 3. Initialize Escrow (Example Command)
+Lock 100 tokens with a future expiry timestamp (e.g. `1813689600`):
+```bash
+soroban contract invoke \
+  --id CD_YOUR_CONTRACT_ID_HERE \
+  --source-account depositor-keypair \
+  --network testnet \
+  -- \
+  initialize \
+  --depositor G_DEPOSITOR_ADDRESS \
+  --recipient G_RECIPIENT_ADDRESS \
+  --arbiter G_ARBITER_ADDRESS \
+  --token C_TOKEN_CONTRACT_ADDRESS \
+  --amount 1000000000 \
+  --expiry 1813689600
+```
+
+### 4. Query Lifecycle State
+```bash
+soroban contract invoke \
+  --id CD_YOUR_CONTRACT_ID_HERE \
+  --source-account any-account \
+  --network testnet \
+  -- \
+  get_state
+```
+
+### 5. Release Funds (by Arbiter)
+```bash
+soroban contract invoke \
+  --id CD_YOUR_CONTRACT_ID_HERE \
+  --source-account arbiter-keypair \
+  --network testnet \
+  -- \
+  release \
+  --arbiter G_ARBITER_ADDRESS
+```
