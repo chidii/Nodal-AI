@@ -98,7 +98,7 @@ export class PayFiAgent extends EventEmitter {
     this._boundHandlers.set("task:failed", onTaskFailed as (...args: unknown[]) => void);
 
     // Log only safe fields — public key is derived, not the secret
-    console.log(`🤖 PayFiAgent initialised`);
+    console.log(` PayFiAgent initialised`);
     console.log(`   Network        : ${config.STELLAR_NETWORK}`);
     console.log(`   Horizon        : ${config.HORIZON_URL}`);
     console.log(`   Soroban        : ${config.SOROBAN_RPC_URL}`);
