@@ -78,7 +78,8 @@ export class X402PaymentTool {
       assetCode: challenge.assetCode,
       assetIssuer:
         challenge.assetCode === "XLM" ? undefined : challenge.assetIssuer,
-      memo: challenge.nonce.slice(0, 28), // embed nonce in memo for auditability
+      // SPEC: memo = SHA-256(nonce)[0:28 hex chars]; resource server must apply the same derivation to verify.
+      memo: hash(Buffer.from(challenge.nonce)).toString("hex").slice(0, 28),
     });
 
     // 4. Build proof

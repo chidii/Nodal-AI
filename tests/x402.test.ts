@@ -7,6 +7,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { hash } from "@stellar/stellar-sdk";
 import { X402PaymentTool } from "../backend/tools/X402PaymentTool";
 import { StellarPaymentTool } from "../backend/tools/StellarPaymentTool";
 
@@ -156,13 +157,15 @@ describe("X402PaymentTool", () => {
       expect(new Date(proof.signedAt).getTime()).toBeLessThanOrEqual(Date.now());
     });
 
-    it("embeds nonce in memo (first 28 chars)", async () => {
+    it("embeds nonce in memo as SHA-256 fingerprint (28 hex chars)", async () => {
       await tool.respond(VALID_CHALLENGE);
 
       const mockPaymentTool = vi.mocked(StellarPaymentTool).mock.results[0].value;
       const callArg = mockPaymentTool.execute.mock.calls[0][0] as any;
 
-      expect(callArg.memo).toBe(VALID_CHALLENGE.nonce.slice(0, 28));
+      const expectedMemo = hash(Buffer.from(VALID_CHALLENGE.nonce)).toString("hex").slice(0, 28);
+      expect(callArg.memo).toBe(expectedMemo);
+      expect(callArg.memo.length).toBe(28);
     });
 
     it("delegates to StellarPaymentTool with correct destination and amount", async () => {
