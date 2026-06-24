@@ -23,6 +23,18 @@ export class TimeoutError extends Error {
   }
 }
 
+// ─── RPC error ────────────────────────────────────────────────────────────────
+
+/** Wraps the final error thrown after all retry attempts are exhausted. */
+export class StellarRPCError extends Error {
+  readonly cause: unknown;
+  constructor(message: string, cause: unknown) {
+    super(message);
+    this.name = "StellarRPCError";
+    this.cause = cause;
+  }
+}
+
 const SUBMIT_TIMEOUT_MS = 30_000;
 
 // ─── Exponential back-off retry ─────────────────────────────────────────────
@@ -70,7 +82,7 @@ export async function withRetry<T>(
         throw err;
       }
       lastErr = err;
-      console.warn(`  Attempt ${attempt}/${retries} failed:`, (err as Error).message);
+      console.warn(`[RPC] Request failed. Retrying... (Attempt ${attempt}/${retries}): ${(err as Error).message}`);
       if (attempt < retries) {
         // True exponential back-off: 1500 → 3000 → 6000 ms for RETRY_DELAY_MS=1500
         const exponential = delayMs * Math.pow(2, attempt - 1);
@@ -81,7 +93,10 @@ export async function withRetry<T>(
       }
     }
   }
-  throw lastErr;
+  throw new StellarRPCError(
+    `RPC call failed after ${retries} attempt${retries !== 1 ? "s" : ""}: ${(lastErr as Error).message}`,
+    lastErr
+  );
 }
 
 // ─── Horizon client ──────────────────────────────────────────────────────────
