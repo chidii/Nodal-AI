@@ -9,6 +9,7 @@ import { createHash } from "crypto";
 import { config } from "../config";
 import { horizonServer } from "../rpc_client";
 import { StellarPaymentTool } from "./StellarPaymentTool";
+import { logger } from "../logger";
 
 // ─── x402 schemas ────────────────────────────────────────────────────────────
 
@@ -48,6 +49,16 @@ export class X402PaymentTool {
 
   async respond(rawChallenge: unknown): Promise<X402PaymentProof> {
     const challenge = X402ChallengeSchema.parse(rawChallenge);
+
+    if (config.ALLOWED_X402_ORIGINS) {
+      const allowedOrigins = config.ALLOWED_X402_ORIGINS.split(",").map(o => o.trim());
+      const hostname = new URL(challenge.resource).hostname;
+      if (!allowedOrigins.includes(hostname)) {
+        throw new Error("x402: untrusted resource origin");
+      }
+    } else {
+      logger.warn("ALLOWED_X402_ORIGINS is not set. All origins accepted.");
+    }
 
     if (new Date(challenge.expiresAt) < new Date()) {
       throw new Error(`x402 challenge expired at ${challenge.expiresAt}`);

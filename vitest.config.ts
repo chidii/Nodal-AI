@@ -6,6 +6,10 @@ export default defineConfig({
     include: ["tests/**/*.test.ts"],
     // Each test file runs in its own isolated context — prevents mock bleed
     isolate: true,
+    // restoreMocks: true automatically calls vi.restoreAllMocks() after every test to restore original implementations
+    restoreMocks: true,
+    // clearMocks: true automatically resets mock.calls, mock.instances, etc. between tests so call history doesn't bleed
+    clearMocks: true,
     // Global test timeout (ms) — generous for polling tests
     testTimeout: 15_000,
     // Coverage configuration (used by test:ts:coverage)

@@ -14,9 +14,12 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.PayFiAgent = void 0;
 const events_1 = require("events");
 const config_1 = require("./config");
+const logger_1 = require("./logger");
 const StellarPaymentTool_1 = require("./tools/StellarPaymentTool");
 const SorobanInvokeTool_1 = require("./tools/SorobanInvokeTool");
 const X402PaymentTool_1 = require("./tools/X402PaymentTool");
+const logger_2 = require("./utils/logger");
+const log = (0, logger_2.createLogger)("orchestrator");
 // ─── Spending limit guard ─────────────────────────────────────────────────────
 /**
  * Check that a payment amount does not exceed the configured spending limit.
@@ -57,13 +60,13 @@ class PayFiAgent extends events_1.EventEmitter {
         // ── Register event listeners — every registration is mirrored in destroy() ──
         const onError = (err) => {
             const safe = err.message.replace(/S[A-Z2-7]{55}/g, "[REDACTED]");
-            console.error(`❌ [PayFiAgent] Unhandled agent error: ${safe}`);
+            logger_1.logger.error("Unhandled agent error", { error: safe });
         };
         const onTaskComplete = (result) => {
-            console.log(`✅ [PayFiAgent] Task complete event: ${result.taskType}`);
+            logger_1.logger.info("Task complete", { taskType: result.taskType });
         };
         const onTaskFailed = (result) => {
-            console.warn(`⚠️  [PayFiAgent] Task failed event: ${result.taskType} — ${result.error}`);
+            logger_1.logger.warn("Task failed", { taskType: result.taskType, error: result.error });
         };
         this.on("error", onError);
         this.on("task:complete", onTaskComplete);
@@ -72,12 +75,14 @@ class PayFiAgent extends events_1.EventEmitter {
         this._boundHandlers.set("task:complete", onTaskComplete);
         this._boundHandlers.set("task:failed", onTaskFailed);
         // Log only safe fields — public key is derived, not the secret
-        console.log(` PayFiAgent initialised`);
-        console.log(`   Network        : ${config_1.config.STELLAR_NETWORK}`);
-        console.log(`   Horizon        : ${config_1.config.HORIZON_URL}`);
-        console.log(`   Soroban        : ${config_1.config.SOROBAN_RPC_URL}`);
-        console.log(`   Agent pubkey   : ${config_1.config.AGENT_PUBLIC_KEY}`);
-        console.log(`   Spending limit : ${config_1.config.AGENT_SPENDING_LIMIT} ${config_1.config.X402_ASSET_CODE}`);
+        logger_1.logger.info("PayFiAgent initialised", {
+            network: config_1.config.STELLAR_NETWORK,
+            horizon: config_1.config.HORIZON_URL,
+            soroban: config_1.config.SOROBAN_RPC_URL,
+            agentPubkey: config_1.config.AGENT_PUBLIC_KEY,
+            spendingLimit: config_1.config.AGENT_SPENDING_LIMIT,
+            assetCode: config_1.config.X402_ASSET_CODE,
+        });
     }
     /**
      * Detach all registered event listeners and release internal resources.
@@ -99,16 +104,16 @@ class PayFiAgent extends events_1.EventEmitter {
         this._boundHandlers.clear();
         // Remove any listeners added externally after construction
         this.removeAllListeners();
-        console.log(`🔴 [PayFiAgent] Destroyed — all event listeners removed.`);
+        logger_1.logger.info("Agent destroyed — all event listeners removed");
     }
     drain() {
         this.isDraining = true;
-        console.log("🟠 [PayFiAgent] Draining — rejecting new tasks.");
+        logger_1.logger.info("Agent draining — rejecting new tasks");
     }
     async waitForPendingTasks() {
         if (this.activeTasks === 0)
             return;
-        console.log(`⏳ [PayFiAgent] Waiting for ${this.activeTasks} pending tasks to finish...`);
+        logger_1.logger.info("Waiting for pending tasks to finish", { activeTasks: this.activeTasks });
         return new Promise((resolve) => {
             const interval = setInterval(() => {
                 if (this.activeTasks === 0) {
@@ -128,7 +133,7 @@ class PayFiAgent extends events_1.EventEmitter {
             };
         }
         this.activeTasks++;
-        console.log(`\n🚀 [Agent] Running task: ${task.type}`);
+        logger_1.logger.info("Running task", { taskType: task.type });
         try {
             let data;
             switch (task.type) {
@@ -150,7 +155,7 @@ class PayFiAgent extends events_1.EventEmitter {
                 default:
                     throw new Error(`Unknown task type: ${task.type}`);
             }
-            console.log(`✅ [Agent] Task completed: ${task.type}`);
+            logger_1.logger.info("Task completed", { taskType: task.type });
             const result = { success: true, taskType: task.type, data };
             this.emit("task:complete", result);
             return result;
@@ -159,7 +164,7 @@ class PayFiAgent extends events_1.EventEmitter {
             const message = err instanceof Error ? err.message : String(err);
             // Redact anything that looks like a secret key before logging
             const safe = message.replace(/S[A-Z2-7]{55}/g, "[REDACTED]");
-            console.error(`❌ [Agent] Task failed: ${task.type} — ${safe}`);
+            logger_1.logger.error("Task failed", { taskType: task.type, error: safe });
             const result = { success: false, taskType: task.type, error: safe };
             this.emit("task:failed", result);
             return result;

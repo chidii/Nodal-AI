@@ -40,11 +40,8 @@ export interface X402PaymentProof {
 export declare class X402PaymentTool {
     private paymentTool;
     private keypair;
+    private horizonServer;
     constructor(secretKey?: string);
-    /**
-     * Respond to an x402 payment challenge.
-     * Returns a proof object the resource server can verify on Horizon.
-     */
     respond(rawChallenge: unknown): Promise<X402PaymentProof>;
     verify(proof: X402PaymentProof, originalChallenge: X402Challenge): Promise<void>;
     private extractOp;

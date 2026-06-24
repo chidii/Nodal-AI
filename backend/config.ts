@@ -20,6 +20,7 @@
 import { z } from "zod";
 import * as dotenv from "dotenv";
 import { Keypair } from "@stellar/stellar-sdk";
+import { execSync } from "child_process";
 
 // Load .env file (no-op when running in CI / production with real env vars)
 dotenv.config();
@@ -92,12 +93,14 @@ const EnvSchema = z.object({
   // Agent identity
   AGENT_SECRET_KEY: StellarSecretKeySchema,
   AGENT_PUBLIC_KEY: StellarPublicKeySchema,
+  AGENT_SECRET_KEY_ARN: z.string().optional(),
 
   // x402 / PayFi asset
   X402_ASSET_CODE: z.string().min(1).max(12).default("USDC"),
   X402_ASSET_ISSUER: z
     .string({ required_error: "X402_ASSET_ISSUER is required" })
     .length(56, "X402_ASSET_ISSUER must be a 56-character Stellar address"),
+  ALLOWED_X402_ORIGINS: z.string().optional(),
 
   // Spending cap
   AGENT_SPENDING_LIMIT: SpendingLimitSchema,
@@ -213,6 +216,8 @@ export interface AgentConfig {
    * ```
    */
   readonly agentKeypair: () => Keypair;
+  readonly ALLOWED_X402_ORIGINS?: string;
+  readonly AGENT_SECRET_KEY_ARN?: string;
 }
 
 // ─── Loader ───────────────────────────────────────────────────────────────────
@@ -235,6 +240,48 @@ function formatValidationErrors(errors: z.ZodError): string {
  * @returns The fully validated, read-only configuration instance.
  */
 function loadConfig(): AgentConfig {
+  if (process.env.AGENT_SECRET_KEY && process.env.AGENT_SECRET_KEY_ARN) {
+    process.stderr.write("❌ [Config] Cannot specify both AGENT_SECRET_KEY and AGENT_SECRET_KEY_ARN.\n");
+    process.exit(1);
+  }
+
+  if (process.env.AGENT_SECRET_KEY_ARN) {
+    try {
+      const arn = process.env.AGENT_SECRET_KEY_ARN;
+      const region = arn.split(":")[3] || "us-east-1";
+      const command = `node -e "
+        const { SecretsManagerClient, GetSecretValueCommand } = require('@aws-sdk/client-secrets-manager');
+        const client = new SecretsManagerClient({ region: '${region}' });
+        client.send(new GetSecretValueCommand({ SecretId: '${arn}' }))
+          .then(res => {
+            if (!res.SecretString) {
+              console.error('No SecretString found in secret');
+              process.exit(1);
+            }
+            process.stdout.write(res.SecretString);
+          })
+          .catch(err => {
+            console.error(err.message);
+            process.exit(1);
+          });
+      "`;
+      const secret = execSync(command, { stdio: ["pipe", "pipe", "pipe"] }).toString().trim();
+      let parsedSecret = secret;
+      try {
+        const json = JSON.parse(secret);
+        if (json && typeof json === "object") {
+          parsedSecret = json.AGENT_SECRET_KEY || Object.values(json)[0] as string;
+        }
+      } catch {
+        // Not a JSON object, use raw string
+      }
+      process.env.AGENT_SECRET_KEY = parsedSecret;
+    } catch (err: any) {
+      process.stderr.write(`❌ [Config] Failed to fetch secret from AWS Secrets Manager (ARN: ${process.env.AGENT_SECRET_KEY_ARN}): ${err.stderr?.toString().trim() || err.message}\n`);
+      process.exit(1);
+    }
+  }
+
   const result = EnvSchema.safeParse(process.env);
 
   if (!result.success) {

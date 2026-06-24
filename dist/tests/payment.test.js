@@ -54,18 +54,24 @@ vitest_1.vi.mock("../backend/rpc_client", () => ({
     prepareSorobanTx: vitest_1.vi.fn(),
 }));
 // ─── Mock config — isolate from real .env ─────────────────────────────────────
-vitest_1.vi.mock("../backend/config", () => ({
-    config: {
-        STELLAR_NETWORK: "testnet",
-        HORIZON_URL: "https://horizon-testnet.stellar.org",
-        SOROBAN_RPC_URL: "https://soroban-testnet.stellar.org",
-        AGENT_SECRET_KEY: "SBZ7EYXHNB4WPPIWC5YAMH2U4L4QU6DKYXQWG4I55G6O4CLE4BBHCE73",
-        X402_ASSET_CODE: "USDC",
-        X402_ASSET_ISSUER: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
-        MAX_RETRIES: 3,
-        RETRY_DELAY_MS: 100, // fast in tests
-    },
-}));
+vitest_1.vi.mock("../backend/config", () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { Keypair } = require("@stellar/stellar-sdk");
+    const secret = "SBZ7EYXHNB4WPPIWC5YAMH2U4L4QU6DKYXQWG4I55G6O4CLE4BBHCE73";
+    return {
+        config: {
+            STELLAR_NETWORK: "testnet",
+            HORIZON_URL: "https://horizon-testnet.stellar.org",
+            SOROBAN_RPC_URL: "https://soroban-testnet.stellar.org",
+            X402_ASSET_CODE: "USDC",
+            X402_ASSET_ISSUER: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+            MAX_RETRIES: 3,
+            RETRY_DELAY_MS: 100,
+            AGENT_PUBLIC_KEY: Keypair.fromSecret(secret).publicKey(),
+            agentKeypair: () => Keypair.fromSecret(secret),
+        },
+    };
+});
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 const TEST_SECRET = "SBZ7EYXHNB4WPPIWC5YAMH2U4L4QU6DKYXQWG4I55G6O4CLE4BBHCE73";
 // Valid 56-char G-address for destination
@@ -95,10 +101,9 @@ function makeMockAccount(publicKey) {
     let tool;
     (0, vitest_1.beforeEach)(() => {
         vitest_1.vi.clearAllMocks();
-        tool = new StellarPaymentTool_1.StellarPaymentTool(TEST_SECRET);
-    });
-    (0, vitest_1.afterEach)(() => {
-        vitest_1.vi.restoreAllMocks();
+        tool = new StellarPaymentTool_1.StellarPaymentTool();
+        // Default: return a minimal valid account for TransactionBuilder
+        vitest_1.vi.mocked(rpcClient.loadAccount).mockResolvedValue(makeMockAccount(tool.publicKey));
     });
     // ── Input validation ────────────────────────────────────────────────────────
     (0, vitest_1.describe)("Input validation", () => {
@@ -123,7 +128,7 @@ function makeMockAccount(publicKey) {
                 amount: "10",
                 assetCode: "USDC",
                 assetIssuer: undefined,
-            })).rejects.toThrow();
+            })).rejects.toThrow("Asset issuer is required for non-native asset USDC");
         });
         (0, vitest_1.it)("rejects a memo longer than 28 bytes", async () => {
             await (0, vitest_1.expect)(tool.execute({
@@ -143,6 +148,40 @@ function makeMockAccount(publicKey) {
                 destination: VALID_DEST,
                 amount: "0.0000001",
                 assetCode: "XLM",
+            });
+            (0, vitest_1.expect)(result.txHash).toBe("boundary_hash");
+        });
+    });
+    (0, vitest_1.describe)("memo boundary tests", () => {
+        (0, vitest_1.beforeEach)(() => {
+            vitest_1.vi.mocked(rpcClient.submitTransaction).mockResolvedValue({
+                hash: "boundary_hash",
+                ledger: 1,
+            });
+        });
+        (0, vitest_1.it)("accepts 28 ASCII characters", async () => {
+            const result = await tool.execute({
+                destination: VALID_DEST,
+                amount: "1",
+                assetCode: "XLM",
+                memo: "a".repeat(28),
+            });
+            (0, vitest_1.expect)(result.txHash).toBe("boundary_hash");
+        });
+        (0, vitest_1.it)("rejects 14 two-byte UTF-8 characters (e.g. あ.repeat(14)) (42 bytes)", async () => {
+            await (0, vitest_1.expect)(tool.execute({
+                destination: VALID_DEST,
+                amount: "1",
+                assetCode: "XLM",
+                memo: "あ".repeat(14),
+            })).rejects.toThrow();
+        });
+        (0, vitest_1.it)("accepts a 28-byte multi-byte string", async () => {
+            const result = await tool.execute({
+                destination: VALID_DEST,
+                amount: "1",
+                assetCode: "XLM",
+                memo: "я".repeat(14), // "я" is 2 bytes in UTF-8
             });
             (0, vitest_1.expect)(result.txHash).toBe("boundary_hash");
         });

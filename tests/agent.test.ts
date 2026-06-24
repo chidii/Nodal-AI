@@ -7,6 +7,7 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { PayFiAgent } from "../backend/agent";
+import { StellarPaymentTool } from "../backend/tools/StellarPaymentTool";
 
 vi.mock("../backend/tools/StellarPaymentTool", () => ({
   StellarPaymentTool: vi.fn().mockImplementation(() => ({
@@ -52,6 +53,9 @@ describe("PayFiAgent — mainnet spending cap", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(StellarPaymentTool).mockImplementation(() => ({
+      execute: vi.fn().mockResolvedValue({ txHash: "mock_hash", ledger: 1 }),
+    } as any));
     agent = new PayFiAgent();
   });
 
