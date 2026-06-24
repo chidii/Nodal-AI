@@ -82,9 +82,7 @@ describe("StellarPaymentTool", () => {
     vi.mocked(rpcClient.loadAccount).mockResolvedValue(makeMockAccount(tool.publicKey) as any);
   });
 
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
+
 
   // ── Input validation ────────────────────────────────────────────────────────
 
@@ -154,6 +152,46 @@ describe("StellarPaymentTool", () => {
         destination: VALID_DEST,
         amount: "0.0000001",
         assetCode: "XLM",
+      });
+      expect(result.txHash).toBe("boundary_hash");
+    });
+  });
+
+  describe("memo boundary tests", () => {
+    beforeEach(() => {
+      vi.mocked(rpcClient.submitTransaction).mockResolvedValue({
+        hash: "boundary_hash",
+        ledger: 1,
+      } as any);
+    });
+
+    it("accepts 28 ASCII characters", async () => {
+      const result = await tool.execute({
+        destination: VALID_DEST,
+        amount: "1",
+        assetCode: "XLM",
+        memo: "a".repeat(28),
+      });
+      expect(result.txHash).toBe("boundary_hash");
+    });
+
+    it("rejects 14 two-byte UTF-8 characters (e.g. あ.repeat(14)) (42 bytes)", async () => {
+      await expect(
+        tool.execute({
+          destination: VALID_DEST,
+          amount: "1",
+          assetCode: "XLM",
+          memo: "あ".repeat(14),
+        })
+      ).rejects.toThrow();
+    });
+
+    it("accepts a 28-byte multi-byte string", async () => {
+      const result = await tool.execute({
+        destination: VALID_DEST,
+        amount: "1",
+        assetCode: "XLM",
+        memo: "я".repeat(14), // "я" is 2 bytes in UTF-8
       });
       expect(result.txHash).toBe("boundary_hash");
     });

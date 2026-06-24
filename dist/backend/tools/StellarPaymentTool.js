@@ -11,8 +11,20 @@ exports.StellarPaymentTool = exports.PaymentInputSchema = void 0;
 const stellar_sdk_1 = require("@stellar/stellar-sdk");
 const zod_1 = require("zod");
 const config_1 = require("../config");
+const logger_1 = require("../logger");
 const rpc_client_1 = require("../rpc_client");
+const logger_2 = require("../utils/logger");
+const log = (0, logger_2.createLogger)("stellar-payment");
 // ─── Input schema ─────────────────────────────────────────────────────────────
+/**
+ * Zod schema for payment input validation.
+ *
+ * @property destination - 56-character Stellar public key (G...) of the recipient
+ * @property amount - Positive decimal string with up to 7 decimal places (Stellar network limit)
+ * @property assetCode - Asset code (default: "XLM")
+ * @property assetIssuer - Asset issuer public key (required for non-XLM assets)
+ * @property memo - Optional memo text, max 28 characters (Stellar network limit)
+ */
 exports.PaymentInputSchema = zod_1.z.object({
     destination: zod_1.z.string().length(56, "Invalid Stellar public key"),
     amount: zod_1.z
@@ -23,12 +35,20 @@ exports.PaymentInputSchema = zod_1.z.object({
         .refine((v) => parseFloat(v) > 0, "Amount must be greater than zero"),
     assetCode: zod_1.z.string().default("XLM"),
     assetIssuer: zod_1.z.string().optional(),
-    memo: zod_1.z.string().max(28).optional(),
+    memo: zod_1.z
+        .string()
+        .refine((v) => Buffer.byteLength(v, "utf8") <= 28, "Memo must be at most 28 bytes")
+        .optional(),
 });
 // ─── Tool implementation ──────────────────────────────────────────────────────
 class StellarPaymentTool {
     keypair;
     networkPassphrase;
+    /**
+     * Create a new StellarPaymentTool instance.
+     *
+     * @param secretKey - Stellar secret key (S...) for signing transactions
+     */
     constructor(secretKey = config_1.config.agentKeypair().secret()) {
         this.keypair = stellar_sdk_1.Keypair.fromSecret(secretKey);
         this.networkPassphrase =
@@ -42,13 +62,29 @@ class StellarPaymentTool {
         return this.keypair.publicKey();
     }
     /**
-     * Execute a payment.
-     * Steps: validate → build → simulate (fee bump check) → sign → submit
+     * Execute a payment on the Stellar network.
+     *
+     * Steps:
+     * 1. Validate input with Zod schema
+     * 2. Resolve asset (native XLM or custom asset)
+     * 3. Load source account to get latest sequence number
+     * 4. Build transaction with payment operation and optional memo
+     * 5. Validate transaction envelope
+     * 6. Sign transaction with keypair
+     * 7. Submit transaction to the network
+     *
+     * @param rawInput - Raw payment input (will be validated)
+     * @returns Object containing transaction hash and ledger number
+     * @throws {z.ZodError} If input fails validation
+     * @throws {Error} If source account not found or transaction submission fails
      */
     async execute(rawInput) {
         // 1. Validate input
         const input = exports.PaymentInputSchema.parse(rawInput);
         // 2. Resolve asset
+        if (input.assetCode !== "XLM" && !input.assetIssuer) {
+            throw new Error(`Asset issuer is required for non-native asset ${input.assetCode}`);
+        }
         const asset = input.assetCode === "XLM"
             ? stellar_sdk_1.Asset.native()
             : new stellar_sdk_1.Asset(input.assetCode, input.assetIssuer);
@@ -71,10 +107,12 @@ class StellarPaymentTool {
         // 5. Fee estimation / simulation via Horizon dry-run
         //    (Horizon doesn't expose simulation like Soroban, so we validate
         //     the transaction envelope locally before submission)
-        console.log(` [StellarPaymentTool] Validating payment envelope...`);
-        console.log(`   Source  : ${this.keypair.publicKey()}`);
-        console.log(`   Dest    : ${input.destination}`);
-        console.log(`   Amount  : ${input.amount} ${input.assetCode}`);
+        logger_1.logger.info("Validating payment envelope", {
+            source: this.keypair.publicKey(),
+            destination: input.destination,
+            amount: input.amount,
+            assetCode: input.assetCode,
+        });
         // 6. Sign
         tx.sign(this.keypair);
         // 7. Submit

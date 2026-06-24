@@ -9,12 +9,6 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { PayFiAgent } from "../backend/agent";
 import { StellarPaymentTool } from "../backend/tools/StellarPaymentTool";
 
-vi.mock("../backend/utils/logger", () => ({
-  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
-  createLogger: vi.fn(() => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() })),
-  generateCorrelationId: vi.fn(() => "mock-id"),
-}));
-
 vi.mock("../backend/tools/StellarPaymentTool", () => ({
   StellarPaymentTool: vi.fn().mockImplementation(() => ({
     execute: vi.fn().mockResolvedValue({ txHash: "mock_hash", ledger: 1 }),
@@ -115,6 +109,9 @@ describe("PayFiAgent — mainnet spending cap", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(StellarPaymentTool).mockImplementation(() => ({
+      execute: vi.fn().mockResolvedValue({ txHash: "mock_hash", ledger: 1 }),
+    } as any));
     agent = new PayFiAgent();
   });
 

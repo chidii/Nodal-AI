@@ -11,20 +11,28 @@ const vitest_1 = require("vitest");
 const stellar_sdk_1 = require("@stellar/stellar-sdk");
 const X402PaymentTool_1 = require("../backend/tools/X402PaymentTool");
 const StellarPaymentTool_1 = require("../backend/tools/StellarPaymentTool");
+const config_1 = require("../backend/config");
 // ─── Mock StellarPaymentTool so x402 tests don't hit Horizon ─────────────────
 vitest_1.vi.mock("../backend/tools/StellarPaymentTool");
-vitest_1.vi.mock("../backend/config", () => ({
-    config: {
-        STELLAR_NETWORK: "testnet",
-        HORIZON_URL: "https://horizon-testnet.stellar.org",
-        SOROBAN_RPC_URL: "https://soroban-testnet.stellar.org",
-        AGENT_SECRET_KEY: "SBZ7EYXHNB4WPPIWC5YAMH2U4L4QU6DKYXQWG4I55G6O4CLE4BBHCE73",
-        X402_ASSET_CODE: "USDC",
-        X402_ASSET_ISSUER: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
-        MAX_RETRIES: 3,
-        RETRY_DELAY_MS: 100,
-    },
-}));
+vitest_1.vi.mock("../backend/config", () => {
+    const { Keypair } = require("@stellar/stellar-sdk");
+    const secret = "SBZ7EYXHNB4WPPIWC5YAMH2U4L4QU6DKYXQWG4I55G6O4CLE4BBHCE73";
+    return {
+        config: {
+            STELLAR_NETWORK: "testnet",
+            HORIZON_URL: "https://horizon-testnet.stellar.org",
+            SOROBAN_RPC_URL: "https://soroban-testnet.stellar.org",
+            AGENT_SECRET_KEY: secret,
+            AGENT_PUBLIC_KEY: Keypair.fromSecret(secret).publicKey(),
+            agentKeypair: () => Keypair.fromSecret(secret),
+            X402_ASSET_CODE: "USDC",
+            X402_ASSET_ISSUER: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+            MAX_RETRIES: 3,
+            RETRY_DELAY_MS: 100,
+            ALLOWED_X402_ORIGINS: undefined,
+        },
+    };
+});
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 const TEST_SECRET = "SBZ7EYXHNB4WPPIWC5YAMH2U4L4QU6DKYXQWG4I55G6O4CLE4BBHCE73";
 const VALID_PAY_TO = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
@@ -44,16 +52,15 @@ const VALID_CHALLENGE = {
 // ─── Tests ────────────────────────────────────────────────────────────────────
 (0, vitest_1.describe)("X402PaymentTool", () => {
     let tool;
+    let mockPaymentTool;
     (0, vitest_1.beforeEach)(() => {
         vitest_1.vi.clearAllMocks();
-        vitest_1.vi.mocked(StellarPaymentTool_1.StellarPaymentTool).mockImplementation(() => ({
+        mockPaymentTool = {
             publicKey: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
             execute: vitest_1.vi.fn().mockResolvedValue({ txHash: "x402_mock_tx_hash", ledger: 99 }),
-        }));
+        };
+        vitest_1.vi.mocked(StellarPaymentTool_1.StellarPaymentTool).mockImplementation(() => mockPaymentTool);
         tool = new X402PaymentTool_1.X402PaymentTool(TEST_SECRET);
-    });
-    (0, vitest_1.afterEach)(() => {
-        vitest_1.vi.restoreAllMocks();
     });
     // ── Schema validation ───────────────────────────────────────────────────────
     (0, vitest_1.describe)("Schema validation", () => {
@@ -104,6 +111,24 @@ const VALID_CHALLENGE = {
             (0, vitest_1.expect)(proof.txHash).toBeTruthy();
         });
     });
+    (0, vitest_1.describe)("ALLOWED_X402_ORIGINS validation", () => {
+        (0, vitest_1.it)("accepts a challenge from a trusted origin", async () => {
+            config_1.config.ALLOWED_X402_ORIGINS = "api.example.com, other.com";
+            const proof = await tool.respond(VALID_CHALLENGE);
+            (0, vitest_1.expect)(proof.txHash).toBe("x402_mock_tx_hash");
+        });
+        (0, vitest_1.it)("rejects a challenge from an untrusted origin", async () => {
+            config_1.config.ALLOWED_X402_ORIGINS = "trusted.com";
+            await (0, vitest_1.expect)(tool.respond(VALID_CHALLENGE)).rejects.toThrow("x402: untrusted resource origin");
+        });
+        (0, vitest_1.it)("disables wildcard (*) bypass", async () => {
+            config_1.config.ALLOWED_X402_ORIGINS = "*";
+            await (0, vitest_1.expect)(tool.respond(VALID_CHALLENGE)).rejects.toThrow("x402: untrusted resource origin");
+        });
+        (0, vitest_1.afterEach)(() => {
+            config_1.config.ALLOWED_X402_ORIGINS = undefined;
+        });
+    });
     // ── Happy path ──────────────────────────────────────────────────────────────
     (0, vitest_1.describe)("Happy path", () => {
         (0, vitest_1.it)("returns a valid x402 payment proof structure", async () => {
@@ -118,7 +143,6 @@ const VALID_CHALLENGE = {
         });
         (0, vitest_1.it)("embeds nonce in memo as SHA-256 fingerprint (28 hex chars)", async () => {
             await tool.respond(VALID_CHALLENGE);
-            const mockPaymentTool = vitest_1.vi.mocked(StellarPaymentTool_1.StellarPaymentTool).mock.results[0].value;
             const callArg = mockPaymentTool.execute.mock.calls[0][0];
             const expectedMemo = (0, stellar_sdk_1.hash)(Buffer.from(VALID_CHALLENGE.nonce)).toString("hex").slice(0, 28);
             (0, vitest_1.expect)(callArg.memo).toBe(expectedMemo);
@@ -126,7 +150,6 @@ const VALID_CHALLENGE = {
         });
         (0, vitest_1.it)("delegates to StellarPaymentTool with correct destination and amount", async () => {
             await tool.respond(VALID_CHALLENGE);
-            const mockPaymentTool = vitest_1.vi.mocked(StellarPaymentTool_1.StellarPaymentTool).mock.results[0].value;
             (0, vitest_1.expect)(mockPaymentTool.execute).toHaveBeenCalledWith(vitest_1.expect.objectContaining({
                 destination: VALID_CHALLENGE.payTo,
                 amount: VALID_CHALLENGE.amount,
@@ -136,20 +159,18 @@ const VALID_CHALLENGE = {
         });
         (0, vitest_1.it)("omits assetIssuer for XLM payments", async () => {
             await tool.respond({ ...VALID_CHALLENGE, assetCode: "XLM" });
-            const mockPaymentTool = vitest_1.vi.mocked(StellarPaymentTool_1.StellarPaymentTool).mock.results[0].value;
             const callArg = mockPaymentTool.execute.mock.calls[0][0];
             (0, vitest_1.expect)(callArg.assetIssuer).toBeUndefined();
         });
         (0, vitest_1.it)("calls StellarPaymentTool.execute exactly once per challenge", async () => {
             await tool.respond(VALID_CHALLENGE);
-            const mockPaymentTool = vitest_1.vi.mocked(StellarPaymentTool_1.StellarPaymentTool).mock.results[0].value;
             (0, vitest_1.expect)(mockPaymentTool.execute).toHaveBeenCalledOnce();
         });
     });
     // ── Payment failure propagation ─────────────────────────────────────────────
     (0, vitest_1.describe)("Payment failure propagation", () => {
         function getMockExecute() {
-            return vitest_1.vi.mocked(StellarPaymentTool_1.StellarPaymentTool).mock.results[0].value.execute;
+            return mockPaymentTool.execute;
         }
         (0, vitest_1.it)("propagates insufficient funds from underlying payment", async () => {
             getMockExecute().mockRejectedValueOnce(new Error("Horizon: op_underfunded — insufficient balance"));

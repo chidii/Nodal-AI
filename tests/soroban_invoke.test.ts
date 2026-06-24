@@ -25,18 +25,24 @@ vi.mock("../backend/rpc_client", () => ({
   },
 }));
 
-vi.mock("../backend/config", () => ({
-  config: {
-    STELLAR_NETWORK: "testnet",
-    HORIZON_URL: "https://horizon-testnet.stellar.org",
-    SOROBAN_RPC_URL: "https://soroban-testnet.stellar.org",
-    AGENT_SECRET_KEY: "SBZ7EYXHNB4WPPIWC5YAMH2U4L4QU6DKYXQWG4I55G6O4CLE4BBHCE73",
-    X402_ASSET_CODE: "USDC",
-    X402_ASSET_ISSUER: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
-    MAX_RETRIES: 3,
-    RETRY_DELAY_MS: 100,
-  },
-}));
+vi.mock("../backend/config", () => {
+  const { Keypair } = require("@stellar/stellar-sdk");
+  const secret = "SBZ7EYXHNB4WPPIWC5YAMH2U4L4QU6DKYXQWG4I55G6O4CLE4BBHCE73";
+  return {
+    config: {
+      STELLAR_NETWORK: "testnet",
+      HORIZON_URL: "https://horizon-testnet.stellar.org",
+      SOROBAN_RPC_URL: "https://soroban-testnet.stellar.org",
+      AGENT_SECRET_KEY: secret,
+      AGENT_PUBLIC_KEY: Keypair.fromSecret(secret).publicKey(),
+      agentKeypair: () => Keypair.fromSecret(secret),
+      X402_ASSET_CODE: "USDC",
+      X402_ASSET_ISSUER: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+      MAX_RETRIES: 3,
+      RETRY_DELAY_MS: 100,
+    },
+  };
+});
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -68,10 +74,6 @@ describe("SorobanInvokeTool", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     tool = new SorobanInvokeTool();
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
   });
 
   // ── Input validation ────────────────────────────────────────────────────────
