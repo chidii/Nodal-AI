@@ -9,6 +9,7 @@
 #   ./scripts/dev.sh test:rust   # run Soroban contract tests locally
 #   ./scripts/dev.sh logs        # tail all service logs
 #   ./scripts/dev.sh clean       # remove containers, volumes, and images
+#   ./scripts/dev.sh --dry-run   # check environment variables and exit
 # =============================================================================
 
 set -euo pipefail
@@ -24,13 +25,51 @@ log()  { echo "▶  $*"; }
 warn() { echo "⚠️  $*" >&2; }
 die()  { echo "❌ $*" >&2; exit 1; }
 
+check_env() {
+  local missing=()
+
+  # Check each required variable
+  if [[ -z "${AGENT_SECRET_KEY:-}" ]]; then
+    missing+=("AGENT_SECRET_KEY")
+  fi
+  if [[ -z "${HORIZON_URL:-}" ]]; then
+    missing+=("HORIZON_URL")
+  fi
+  if [[ -z "${SOROBAN_RPC_URL:-}" ]]; then
+    missing+=("SOROBAN_RPC_URL")
+  fi
+  if [[ -z "${X402_ASSET_ISSUER:-}" ]]; then
+    missing+=("X402_ASSET_ISSUER")
+  fi
+
+  # If any are missing, print error and exit 1
+  if [[ ${#missing[@]} -gt 0 ]]; then
+    echo "❌ ERROR: Missing required environment variables:"
+    for var in "${missing[@]}"; do
+      echo "  - $var"
+    done
+    echo ""
+    echo "Please set these variables in your .env file or environment."
+    exit 1
+  fi
+
+  log "All required environment variables are set."
+}
+
 require_env() {
   [[ -f .env ]] || die ".env file not found. Copy .env.example and fill in your values."
   # shellcheck disable=SC1091
   set -a; source .env; set +a
+  check_env
 }
 
 # ── Commands ──────────────────────────────────────────────────────────────────
+
+cmd_dry_run() {
+  require_env
+  log "Environment check passed!"
+  exit 0
+}
 
 cmd_up() {
   require_env
@@ -74,11 +113,12 @@ cmd_clean() {
 # ── Dispatch ──────────────────────────────────────────────────────────────────
 
 case "${1:-up}" in
+  --dry-run)  cmd_dry_run    ;;
   up)         cmd_up         ;;
   down)       cmd_down       ;;
   test)       cmd_test       ;;
   test:rust)  cmd_test_rust  ;;
   logs)       cmd_logs       ;;
   clean)      cmd_clean      ;;
-  *)          die "Unknown command: $1. Use: up | down | test | test:rust | logs | clean" ;;
+  *)          die "Unknown command: $1. Use: --dry-run | up | down | test | test:rust | logs | clean" ;;
 esac

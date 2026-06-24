@@ -17,6 +17,7 @@ import {
 } from "@stellar/stellar-sdk";
 import { z } from "zod";
 import { config } from "../config";
+import { logger } from "../logger";
 import { loadAccount, prepareSorobanTx, sorobanServer } from "../rpc_client";
 
 // ─── Input schema ─────────────────────────────────────────────────────────────
@@ -163,13 +164,16 @@ export class SorobanInvokeTool {
       .setTimeout(30)
       .build();
 
-    console.log(` [SorobanInvokeTool] Simulating ${input.method} on ${input.contractId}...`);
+    logger.info("Simulating Soroban transaction", {
+      method: input.method,
+      contractId: input.contractId,
+    });
 
     // 4. MANDATORY simulate step — throws on simulation failure
     const preparedTx = await prepareSorobanTx(tx);
 
     if (input.simulateOnly) {
-      console.log(`[SorobanInvokeTool] Simulation passed (dry-run, not broadcasting).`);
+      logger.info("Simulation passed (dry-run, not broadcasting)");
       return { simulationResult: preparedTx };
     }
 
@@ -223,13 +227,17 @@ export class SorobanInvokeTool {
       const status = await sorobanServer.getTransaction(hash);
 
       if (status.status === "SUCCESS") {
-        console.log(` [SorobanInvokeTool] Transaction confirmed: ${hash}`);
+        logger.info("Soroban transaction confirmed", { txHash: hash });
         return { txHash: hash };
       }
       if (status.status === "FAILED") {
         throw new Error(`Soroban transaction failed on-chain: ${hash}`);
       }
-      console.log(`[SorobanInvokeTool] Polling... attempt ${i + 1}/${maxAttempts}`);
+      logger.debug("Polling for Soroban transaction confirmation", {
+        txHash: hash,
+        attempt: i + 1,
+        maxAttempts,
+      });
     }
     throw new Error(`Soroban transaction not confirmed within polling window: ${hash}`);
   }

@@ -12,9 +12,19 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       include: ["backend/**/*.ts"],
-      exclude: ["backend/config.ts"], // config module is mocked in all tests
+      exclude: [
+        "backend/config.ts", // config module is mocked in all tests
+        "backend/agent.ts"   // thin orchestrator, excluded from coverage thresholds
+      ],
       reporter: ["text", "lcov", "html"],
       reportsDirectory: "./coverage",
+      // Enforce minimum coverage thresholds to prevent regression
+      thresholds: {
+        lines: 80,
+        functions: 80,
+        branches: 70,
+        statements: 80
+      }
     },
   },
 });

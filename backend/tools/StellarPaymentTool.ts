@@ -18,6 +18,7 @@ import {
 } from "@stellar/stellar-sdk";
 import { z } from "zod";
 import { config } from "../config";
+import { logger } from "../logger";
 import { loadAccount, submitTransaction } from "../rpc_client";
 import { createLogger } from "../utils/logger";
 
@@ -25,6 +26,15 @@ const log = createLogger("stellar-payment");
 
 // ─── Input schema ─────────────────────────────────────────────────────────────
 
+/**
+ * Zod schema for payment input validation.
+ *
+ * @property destination - 56-character Stellar public key (G...) of the recipient
+ * @property amount - Positive decimal string with up to 7 decimal places (Stellar network limit)
+ * @property assetCode - Asset code (default: "XLM")
+ * @property assetIssuer - Asset issuer public key (required for non-XLM assets)
+ * @property memo - Optional memo text, max 28 characters (Stellar network limit)
+ */
 export const PaymentInputSchema = z.object({
   destination: z.string().length(56, "Invalid Stellar public key"),
   amount: z
@@ -46,6 +56,11 @@ export class StellarPaymentTool {
   private keypair: Keypair;
   private networkPassphrase: string;
 
+  /**
+   * Create a new StellarPaymentTool instance.
+   *
+   * @param secretKey - Stellar secret key (S...) for signing transactions
+   */
   constructor(secretKey: string = config.agentKeypair().secret()) {
     this.keypair = Keypair.fromSecret(secretKey);
     this.networkPassphrase =
@@ -61,8 +76,21 @@ export class StellarPaymentTool {
   }
 
   /**
-   * Execute a payment.
-   * Steps: validate → build → simulate (fee bump check) → sign → submit
+   * Execute a payment on the Stellar network.
+   *
+   * Steps:
+   * 1. Validate input with Zod schema
+   * 2. Resolve asset (native XLM or custom asset)
+   * 3. Load source account to get latest sequence number
+   * 4. Build transaction with payment operation and optional memo
+   * 5. Validate transaction envelope
+   * 6. Sign transaction with keypair
+   * 7. Submit transaction to the network
+   *
+   * @param rawInput - Raw payment input (will be validated)
+   * @returns Object containing transaction hash and ledger number
+   * @throws {z.ZodError} If input fails validation
+   * @throws {Error} If source account not found or transaction submission fails
    */
   async execute(
     rawInput: unknown
@@ -102,8 +130,7 @@ const tx = txBuilder.setTimeout(30).build();
     // 5. Fee estimation / simulation via Horizon dry-run
     //    (Horizon doesn't expose simulation like Soroban, so we validate
     //     the transaction envelope locally before submission)
-    log.info({
-      msg: "Validating payment envelope",
+    logger.info("Validating payment envelope", {
       source: this.keypair.publicKey(),
       destination: input.destination,
       amount: input.amount,

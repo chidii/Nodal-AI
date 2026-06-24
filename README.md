@@ -80,6 +80,7 @@ The `contracts/` pillar holds your escrow and payment logic.
 ### Integration Testing
 We use `Vitest` to ensure the entire flow—from AI reasoning to network settlement—works as expected.
 *   `npm run test`: Executes the `/tests` suite.
+*   `npm run test:ui`: Runs the test suite with the interactive Vitest UI.
 
 ---
 

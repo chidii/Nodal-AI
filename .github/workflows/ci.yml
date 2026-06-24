@@ -100,3 +100,34 @@ jobs:
         uses: actions-rs/tarpaulin@v0.1
         with:
           args: '--manifest-path contracts/escrow/Cargo.toml --out Html --output-dir coverage/rust'
+
+  audit-npm:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+      - run: npm run audit
+
+  audit-rust:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit
+
+      - name: Run cargo audit
+        run: cargo audit --manifest-path contracts/escrow/Cargo.toml
