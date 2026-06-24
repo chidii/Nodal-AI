@@ -5,7 +5,7 @@
  * All network calls route through here — centralised observability point.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.sorobanServer = exports.horizonServer = exports.TimeoutError = void 0;
+exports.sorobanServer = exports.horizonServer = exports.StellarRPCError = exports.TimeoutError = void 0;
 exports.DEFAULT_IS_RETRYABLE = DEFAULT_IS_RETRYABLE;
 exports.withRetry = withRetry;
 exports.loadAccount = loadAccount;
@@ -15,7 +15,10 @@ exports.prepareSorobanTx = prepareSorobanTx;
 const stellar_sdk_1 = require("@stellar/stellar-sdk");
 const zod_1 = require("zod");
 const config_1 = require("./config");
+const logger_1 = require("./logger");
 const xdr_1 = require("./types/xdr");
+const logger_2 = require("./utils/logger");
+const log = (0, logger_2.createLogger)("rpc-client");
 // ─── Timeout error ────────────────────────────────────────────────────────────
 class TimeoutError extends Error {
     constructor(ms) {
@@ -24,6 +27,17 @@ class TimeoutError extends Error {
     }
 }
 exports.TimeoutError = TimeoutError;
+// ─── RPC error ────────────────────────────────────────────────────────────────
+/** Wraps the final error thrown after all retry attempts are exhausted. */
+class StellarRPCError extends Error {
+    cause;
+    constructor(message, cause) {
+        super(message);
+        this.name = "StellarRPCError";
+        this.cause = cause;
+    }
+}
+exports.StellarRPCError = StellarRPCError;
 const SUBMIT_TIMEOUT_MS = 30_000;
 // ─── Exponential back-off retry ─────────────────────────────────────────────
 /**
@@ -65,7 +79,11 @@ async function withRetry(fn, retries = config_1.config.MAX_RETRIES, delayMs = co
                 throw err;
             }
             lastErr = err;
-            console.warn(`  Attempt ${attempt}/${retries} failed:`, err.message);
+            logger_1.logger.warn("Retry attempt failed", {
+                attempt,
+                maxRetries: retries,
+                error: err.message,
+            });
             if (attempt < retries) {
                 // True exponential back-off: 1500 → 3000 → 6000 ms for RETRY_DELAY_MS=1500
                 const exponential = delayMs * Math.pow(2, attempt - 1);
@@ -76,7 +94,7 @@ async function withRetry(fn, retries = config_1.config.MAX_RETRIES, delayMs = co
             }
         }
     }
-    throw lastErr;
+    throw new StellarRPCError(`RPC call failed after ${retries} attempt${retries !== 1 ? "s" : ""}: ${lastErr.message}`, lastErr);
 }
 // ─── Horizon client ──────────────────────────────────────────────────────────
 /**

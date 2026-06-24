@@ -7,8 +7,11 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.X402PaymentTool = exports.X402ChallengeSchema = void 0;
 const stellar_sdk_1 = require("@stellar/stellar-sdk");
 const zod_1 = require("zod");
+const crypto_1 = require("crypto");
 const config_1 = require("../config");
+const rpc_client_1 = require("../rpc_client");
 const StellarPaymentTool_1 = require("./StellarPaymentTool");
+const logger_1 = require("../logger");
 // ─── x402 schemas ────────────────────────────────────────────────────────────
 exports.X402ChallengeSchema = zod_1.z.object({
     resource: zod_1.z.string().url("Must be a valid resource URL"),
@@ -23,13 +26,25 @@ exports.X402ChallengeSchema = zod_1.z.object({
 class X402PaymentTool {
     paymentTool;
     keypair;
+    horizonServer;
     constructor(secretKey = config_1.config.agentKeypair().secret()) {
         this.keypair = stellar_sdk_1.Keypair.fromSecret(secretKey);
         this.paymentTool = new StellarPaymentTool_1.StellarPaymentTool(secretKey);
+        this.horizonServer = rpc_client_1.horizonServer;
     }
     async respond(rawChallenge) {
         const challenge = exports.X402ChallengeSchema.parse(rawChallenge);
-        if (new Date(challenge.expiresAt) <= new Date()) {
+        if (config_1.config.ALLOWED_X402_ORIGINS) {
+            const allowedOrigins = config_1.config.ALLOWED_X402_ORIGINS.split(",").map(o => o.trim());
+            const hostname = new URL(challenge.resource).hostname;
+            if (!allowedOrigins.includes(hostname)) {
+                throw new Error("x402: untrusted resource origin");
+            }
+        }
+        else {
+            logger_1.logger.warn("ALLOWED_X402_ORIGINS is not set. All origins accepted.");
+        }
+        if (new Date(challenge.expiresAt) < new Date()) {
             throw new Error(`x402 challenge expired at ${challenge.expiresAt}`);
         }
         const { txHash } = await this.paymentTool.execute({
@@ -38,7 +53,7 @@ class X402PaymentTool {
             assetCode: challenge.assetCode,
             assetIssuer: challenge.assetCode === "XLM" ? undefined : challenge.assetIssuer,
             // SPEC: memo = SHA-256(nonce)[0:28 hex chars]; resource server must apply the same derivation to verify.
-            memo: (0, stellar_sdk_1.hash)(Buffer.from(challenge.nonce)).toString("hex").slice(0, 28),
+            memo: (0, crypto_1.createHash)("sha256").update(challenge.nonce).digest("hex").slice(0, 28),
         });
         return {
             protocol: "x402",

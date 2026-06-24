@@ -55,18 +55,24 @@ vitest_1.vi.mock("../backend/rpc_client", () => ({
         getTransaction: vitest_1.vi.fn(),
     },
 }));
-vitest_1.vi.mock("../backend/config", () => ({
-    config: {
-        STELLAR_NETWORK: "testnet",
-        HORIZON_URL: "https://horizon-testnet.stellar.org",
-        SOROBAN_RPC_URL: "https://soroban-testnet.stellar.org",
-        AGENT_SECRET_KEY: "SBZ7EYXHNB4WPPIWC5YAMH2U4L4QU6DKYXQWG4I55G6O4CLE4BBHCE73",
-        X402_ASSET_CODE: "USDC",
-        X402_ASSET_ISSUER: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
-        MAX_RETRIES: 3,
-        RETRY_DELAY_MS: 100,
-    },
-}));
+vitest_1.vi.mock("../backend/config", () => {
+    const { Keypair } = require("@stellar/stellar-sdk");
+    const secret = "SBZ7EYXHNB4WPPIWC5YAMH2U4L4QU6DKYXQWG4I55G6O4CLE4BBHCE73";
+    return {
+        config: {
+            STELLAR_NETWORK: "testnet",
+            HORIZON_URL: "https://horizon-testnet.stellar.org",
+            SOROBAN_RPC_URL: "https://soroban-testnet.stellar.org",
+            AGENT_SECRET_KEY: secret,
+            AGENT_PUBLIC_KEY: Keypair.fromSecret(secret).publicKey(),
+            agentKeypair: () => Keypair.fromSecret(secret),
+            X402_ASSET_CODE: "USDC",
+            X402_ASSET_ISSUER: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+            MAX_RETRIES: 3,
+            RETRY_DELAY_MS: 100,
+        },
+    };
+});
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 const TEST_SECRET = "SBZ7EYXHNB4WPPIWC5YAMH2U4L4QU6DKYXQWG4I55G6O4CLE4BBHCE73";
 const VALID_CONTRACT = "CDPVBHPSVYKWSI5ECEA4DASBG3RBNU5EHEE3DHNFX7RMBCZV66CSC7NH";
@@ -91,10 +97,7 @@ function makeMockAccount(publicKey) {
     let tool;
     (0, vitest_1.beforeEach)(() => {
         vitest_1.vi.clearAllMocks();
-        tool = new SorobanInvokeTool_1.SorobanInvokeTool(TEST_SECRET);
-    });
-    (0, vitest_1.afterEach)(() => {
-        vitest_1.vi.restoreAllMocks();
+        tool = new SorobanInvokeTool_1.SorobanInvokeTool();
     });
     // ── Input validation ────────────────────────────────────────────────────────
     (0, vitest_1.describe)("Input validation", () => {

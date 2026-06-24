@@ -55,6 +55,7 @@ exports.MAINNET_SPENDING_CAP = exports.config = void 0;
 const zod_1 = require("zod");
 const dotenv = __importStar(require("dotenv"));
 const stellar_sdk_1 = require("@stellar/stellar-sdk");
+const child_process_1 = require("child_process");
 // Load .env file (no-op when running in CI / production with real env vars)
 dotenv.config();
 // ─── Custom Zod refinements ───────────────────────────────────────────────────
@@ -113,13 +114,17 @@ const EnvSchema = zod_1.z.object({
     // Agent identity
     AGENT_SECRET_KEY: StellarSecretKeySchema,
     AGENT_PUBLIC_KEY: StellarPublicKeySchema,
+    AGENT_SECRET_KEY_ARN: zod_1.z.string().optional(),
     // x402 / PayFi asset
     X402_ASSET_CODE: zod_1.z.string().min(1).max(12).default("USDC"),
     X402_ASSET_ISSUER: zod_1.z
         .string({ required_error: "X402_ASSET_ISSUER is required" })
         .length(56, "X402_ASSET_ISSUER must be a 56-character Stellar address"),
+    ALLOWED_X402_ORIGINS: zod_1.z.string().optional(),
     // Spending cap
     AGENT_SPENDING_LIMIT: SpendingLimitSchema,
+    // Logging
+    LOG_LEVEL: zod_1.z.enum(["debug", "info", "warn", "error"]).default("info"),
     // Retry behaviour
     // Exponential back-off: delay = RETRY_DELAY_MS * 2^(attempt-1), capped at 30 000 ms,
     // plus ±20% random jitter. Example — MAX_RETRIES=3, RETRY_DELAY_MS=1500 →
@@ -147,7 +152,55 @@ function formatValidationErrors(errors) {
     })
         .join("\n");
 }
+/**
+ * Loads, parses, and validates environment variables against the Zod schema.
+ * Enforces spending caps, derivations, and network rules at startup.
+ *
+ * @returns The fully validated, read-only configuration instance.
+ */
 function loadConfig() {
+    if (process.env.AGENT_SECRET_KEY && process.env.AGENT_SECRET_KEY_ARN) {
+        process.stderr.write("❌ [Config] Cannot specify both AGENT_SECRET_KEY and AGENT_SECRET_KEY_ARN.\n");
+        process.exit(1);
+    }
+    if (process.env.AGENT_SECRET_KEY_ARN) {
+        try {
+            const arn = process.env.AGENT_SECRET_KEY_ARN;
+            const region = arn.split(":")[3] || "us-east-1";
+            const command = `node -e "
+        const { SecretsManagerClient, GetSecretValueCommand } = require('@aws-sdk/client-secrets-manager');
+        const client = new SecretsManagerClient({ region: '${region}' });
+        client.send(new GetSecretValueCommand({ SecretId: '${arn}' }))
+          .then(res => {
+            if (!res.SecretString) {
+              console.error('No SecretString found in secret');
+              process.exit(1);
+            }
+            process.stdout.write(res.SecretString);
+          })
+          .catch(err => {
+            console.error(err.message);
+            process.exit(1);
+          });
+      "`;
+            const secret = (0, child_process_1.execSync)(command, { stdio: ["pipe", "pipe", "pipe"] }).toString().trim();
+            let parsedSecret = secret;
+            try {
+                const json = JSON.parse(secret);
+                if (json && typeof json === "object") {
+                    parsedSecret = json.AGENT_SECRET_KEY || Object.values(json)[0];
+                }
+            }
+            catch {
+                // Not a JSON object, use raw string
+            }
+            process.env.AGENT_SECRET_KEY = parsedSecret;
+        }
+        catch (err) {
+            process.stderr.write(`❌ [Config] Failed to fetch secret from AWS Secrets Manager (ARN: ${process.env.AGENT_SECRET_KEY_ARN}): ${err.stderr?.toString().trim() || err.message}\n`);
+            process.exit(1);
+        }
+    }
     const result = EnvSchema.safeParse(process.env);
     if (!result.success) {
         // Print structured errors — secret values are never echoed
@@ -203,6 +256,11 @@ function loadConfig() {
 }
 // ─── Singleton — validated once at import time ────────────────────────────────
 exports.config = loadConfig();
+/**
+ * Hardcoded spending limit (safety cap) for transactions on Stellar mainnet.
+ * Any single operation/payment attempting to exceed this value will be blocked
+ * by the spending limit assertion before submission.
+ */
 exports.MAINNET_SPENDING_CAP = 10000;
 // ─── Compile-time encapsulation guard ────────────────────────────────────────
 // AgentConfig intentionally omits AGENT_SECRET_KEY via Omit<RawEnv, "AGENT_SECRET_KEY">.

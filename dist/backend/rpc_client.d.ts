@@ -7,6 +7,11 @@ import { Horizon, rpc, Transaction, FeeBumpTransaction } from "@stellar/stellar-
 export declare class TimeoutError extends Error {
     constructor(ms: number);
 }
+/** Wraps the final error thrown after all retry attempts are exhausted. */
+export declare class StellarRPCError extends Error {
+    readonly cause: unknown;
+    constructor(message: string, cause: unknown);
+}
 /**
  * Returns false for deterministic failures (ZodError, TypeError) that will
  * never succeed on retry, true for transient errors worth retrying.

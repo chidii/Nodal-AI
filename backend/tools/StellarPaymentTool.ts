@@ -45,7 +45,10 @@ export const PaymentInputSchema = z.object({
     .refine((v) => parseFloat(v) > 0, "Amount must be greater than zero"),
   assetCode: z.string().default("XLM"),
   assetIssuer: z.string().optional(),
-  memo: z.string().max(28).optional(),
+  memo: z
+    .string()
+    .refine((v) => Buffer.byteLength(v, "utf8") <= 28, "Memo must be at most 28 bytes")
+    .optional(),
 });
 
 export type PaymentInput = z.infer<typeof PaymentInputSchema>;

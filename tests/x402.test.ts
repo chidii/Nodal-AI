@@ -10,23 +10,31 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { hash } from "@stellar/stellar-sdk";
 import { X402PaymentTool } from "../backend/tools/X402PaymentTool";
 import { StellarPaymentTool } from "../backend/tools/StellarPaymentTool";
+import { config } from "../backend/config";
 
 // ─── Mock StellarPaymentTool so x402 tests don't hit Horizon ─────────────────
 
 vi.mock("../backend/tools/StellarPaymentTool");
 
-vi.mock("../backend/config", () => ({
-  config: {
-    STELLAR_NETWORK: "testnet",
-    HORIZON_URL: "https://horizon-testnet.stellar.org",
-    SOROBAN_RPC_URL: "https://soroban-testnet.stellar.org",
-    AGENT_SECRET_KEY: "SBZ7EYXHNB4WPPIWC5YAMH2U4L4QU6DKYXQWG4I55G6O4CLE4BBHCE73",
-    X402_ASSET_CODE: "USDC",
-    X402_ASSET_ISSUER: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
-    MAX_RETRIES: 3,
-    RETRY_DELAY_MS: 100,
-  },
-}));
+vi.mock("../backend/config", () => {
+  const { Keypair } = require("@stellar/stellar-sdk");
+  const secret = "SBZ7EYXHNB4WPPIWC5YAMH2U4L4QU6DKYXQWG4I55G6O4CLE4BBHCE73";
+  return {
+    config: {
+      STELLAR_NETWORK: "testnet",
+      HORIZON_URL: "https://horizon-testnet.stellar.org",
+      SOROBAN_RPC_URL: "https://soroban-testnet.stellar.org",
+      AGENT_SECRET_KEY: secret,
+      AGENT_PUBLIC_KEY: Keypair.fromSecret(secret).publicKey(),
+      agentKeypair: () => Keypair.fromSecret(secret),
+      X402_ASSET_CODE: "USDC",
+      X402_ASSET_ISSUER: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+      MAX_RETRIES: 3,
+      RETRY_DELAY_MS: 100,
+      ALLOWED_X402_ORIGINS: undefined,
+    },
+  };
+});
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -56,16 +64,15 @@ describe("X402PaymentTool", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(StellarPaymentTool).mockImplementation(() => ({
+    mockPaymentTool = {
       publicKey: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
       execute: vi.fn().mockResolvedValue({ txHash: "x402_mock_tx_hash", ledger: 99 }),
-    } as any));
+    };
+    vi.mocked(StellarPaymentTool).mockImplementation(() => mockPaymentTool);
     tool = new X402PaymentTool(TEST_SECRET);
   });
 
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
+
 
   // ── Schema validation ───────────────────────────────────────────────────────
 
@@ -139,6 +146,28 @@ describe("X402PaymentTool", () => {
         expiresAt: futureIso(1),
       });
       expect(proof.txHash).toBeTruthy();
+    });
+  });
+
+  describe("ALLOWED_X402_ORIGINS validation", () => {
+    it("accepts a challenge from a trusted origin", async () => {
+      (config as any).ALLOWED_X402_ORIGINS = "api.example.com, other.com";
+      const proof = await tool.respond(VALID_CHALLENGE);
+      expect(proof.txHash).toBe("x402_mock_tx_hash");
+    });
+
+    it("rejects a challenge from an untrusted origin", async () => {
+      (config as any).ALLOWED_X402_ORIGINS = "trusted.com";
+      await expect(tool.respond(VALID_CHALLENGE)).rejects.toThrow("x402: untrusted resource origin");
+    });
+
+    it("disables wildcard (*) bypass", async () => {
+      (config as any).ALLOWED_X402_ORIGINS = "*";
+      await expect(tool.respond(VALID_CHALLENGE)).rejects.toThrow("x402: untrusted resource origin");
+    });
+
+    afterEach(() => {
+      (config as any).ALLOWED_X402_ORIGINS = undefined;
     });
   });
 
