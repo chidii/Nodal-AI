@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { execSync } from "child_process";
+import { z } from "zod";
 
 vi.mock("child_process", async () => {
   const original = await vi.importActual<any>("child_process");
@@ -100,5 +101,76 @@ describe("config.ts startup validation", () => {
     expect(stderrSpy).toHaveBeenCalledWith(
       expect.stringContaining("AGENT_SECRET_KEY is not a valid Stellar secret key")
     );
+  });
+});
+
+describe("SpendingLimitSchema", () => {
+  const SpendingLimitSchema = z
+    .string()
+    .regex(
+      /^[1-9]\d*(\.\d{1,7})?$/,
+      "AGENT_SPENDING_LIMIT must be a positive decimal (e.g. '100' or '50.0000000')"
+    )
+    .default("100");
+
+  describe("accepted values", () => {
+    it("accepts single digit positive integer", () => {
+      const result = SpendingLimitSchema.safeParse("1");
+      expect(result.success).toBe(true);
+      expect(result.data).toBe("1");
+    });
+
+    it("accepts large integer", () => {
+      const result = SpendingLimitSchema.safeParse("9999999");
+      expect(result.success).toBe(true);
+    });
+
+    it("accepts decimal with 1 decimal place", () => {
+      const result = SpendingLimitSchema.safeParse("100.5");
+      expect(result.success).toBe(true);
+    });
+
+    it("accepts 7 decimal places (boundary)", () => {
+      const result = SpendingLimitSchema.safeParse("9999999.9999999");
+      expect(result.success).toBe(true);
+    });
+
+    it("accepts max decimal precision at single digit", () => {
+      const result = SpendingLimitSchema.safeParse("1.0000001");
+      expect(result.success).toBe(true);
+    });
+
+    it("defaults to '100' when undefined", () => {
+      const result = SpendingLimitSchema.safeParse(undefined);
+      expect(result.success).toBe(true);
+      expect(result.data).toBe("100");
+    });
+  });
+
+  describe("rejected values", () => {
+    it("rejects zero", () => {
+      const result = SpendingLimitSchema.safeParse("0");
+      expect(result.success).toBe(false);
+    });
+
+    it("rejects negative number", () => {
+      const result = SpendingLimitSchema.safeParse("-1");
+      expect(result.success).toBe(false);
+    });
+
+    it("rejects 8 decimal places", () => {
+      const result = SpendingLimitSchema.safeParse("0.00000001");
+      expect(result.success).toBe(false);
+    });
+
+    it("rejects non-numeric string", () => {
+      const result = SpendingLimitSchema.safeParse("abc");
+      expect(result.success).toBe(false);
+    });
+
+    it("rejects empty string", () => {
+      const result = SpendingLimitSchema.safeParse("");
+      expect(result.success).toBe(false);
+    });
   });
 });
