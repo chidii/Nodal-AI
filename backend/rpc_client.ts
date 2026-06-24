@@ -122,6 +122,20 @@ export async function withRetry<T>(
   );
 }
 
+// ─── Timeout wrapper ──────────────────────────────────────────────────────────
+
+/**
+ * Wraps a promise in a race against a timeout.
+ * Throws TimeoutError if the promise does not resolve within `ms` milliseconds.
+ */
+export function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  let id: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<never>((_, reject) => {
+    id = setTimeout(() => reject(new TimeoutError(ms)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(id));
+}
+
 // ─── Horizon client ──────────────────────────────────────────────────────────
 
 /**
@@ -143,7 +157,10 @@ export const horizonServer = new Horizon.Server(config.HORIZON_URL, {
  * @throws An error if the account cannot be loaded after retries.
  */
 export async function loadAccount(publicKey: string) {
-  return withRetry(() => horizonServer.loadAccount(publicKey), config.MAX_RETRIES, config.RETRY_DELAY_MS, DEFAULT_IS_RETRYABLE);
+  return withTimeout(
+    withRetry(() => horizonServer.loadAccount(publicKey), config.MAX_RETRIES, config.RETRY_DELAY_MS, DEFAULT_IS_RETRYABLE),
+    config.RPC_TIMEOUT_MS
+  );
 }
 
 /**
@@ -203,7 +220,10 @@ export const sorobanServer = new rpc.Server(config.SOROBAN_RPC_URL, {
  * @throws An error if simulation RPC call fails after retries.
  */
 export async function simulateSorobanTx(tx: Transaction) {
-  return withRetry(() => sorobanServer.simulateTransaction(tx), config.MAX_RETRIES, config.RETRY_DELAY_MS, DEFAULT_IS_RETRYABLE);
+  return withTimeout(
+    withRetry(() => sorobanServer.simulateTransaction(tx), config.MAX_RETRIES, config.RETRY_DELAY_MS, DEFAULT_IS_RETRYABLE),
+    config.RPC_TIMEOUT_MS
+  );
 }
 
 /**
