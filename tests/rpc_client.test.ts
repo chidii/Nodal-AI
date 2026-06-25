@@ -47,6 +47,14 @@ describe("resolveNetworkPassphrase", () => {
   it("throws for an unknown network string", () => {
     expect(() => resolveNetworkPassphrase("unknown")).toThrow("Unsupported network: unknown");
   });
+
+  it("throws for empty string", () => {
+    expect(() => resolveNetworkPassphrase("")).toThrow("Unsupported network: ");
+  });
+
+  it("throws for undefined cast to string", () => {
+    expect(() => resolveNetworkPassphrase(undefined as any)).toThrow();
+  });
 });
 
 // ─── DEFAULT_IS_RETRYABLE ─────────────────────────────────────────────────────

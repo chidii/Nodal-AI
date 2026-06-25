@@ -161,6 +161,39 @@ describe("PayFiAgent — mainnet spending cap", () => {
 
     expect(result.success).toBe(true);
   });
+
+  it("two PayFiAgent instances do not share state when run concurrently", async () => {
+    vi.clearAllMocks();
+    const agent1 = new PayFiAgent();
+    const agent2 = new PayFiAgent();
+
+    const mockInstance1 = vi.mocked(StellarPaymentTool).mock.results[0].value;
+    const mockInstance2 = vi.mocked(StellarPaymentTool).mock.results[1].value;
+
+    mockInstance1.execute.mockResolvedValueOnce({ txHash: "tx_hash_1", ledger: 1 });
+    mockInstance2.execute.mockResolvedValueOnce({ txHash: "tx_hash_2", ledger: 2 });
+
+    const task = {
+      type: "stellar_payment" as const,
+      payload: {
+        destination: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
+        amount: "100",
+        assetCode: "USDC",
+        assetIssuer: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+      },
+    };
+
+    const [result1, result2] = await Promise.all([
+      agent1.run(task),
+      agent2.run(task),
+    ]);
+
+    expect(result1.success).toBe(true);
+    expect(result2.success).toBe(true);
+    expect(result1.data?.txHash).toBe("tx_hash_1");
+    expect(result2.data?.txHash).toBe("tx_hash_2");
+    expect(agent1).not.toBe(agent2);
+  });
 });
 
 describe("AgentResult snapshot", () => {
