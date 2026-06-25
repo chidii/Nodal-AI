@@ -129,6 +129,52 @@ We are actively participating in the **Stellar Wave** program! We welcome contri
 
 ---
 
+## Examples
+
+Three runnable scripts in `scripts/examples/` demonstrate each `TaskType` with real payloads. Copy `.env.example` to `.env` and fill in your values, then run any script with:
+
+```bash
+npx ts-node scripts/examples/<script>.ts
+```
+
+### `send_xlm.ts` — stellar_payment
+
+Sends 1 XLM to a recipient account on testnet.
+
+```bash
+npx ts-node scripts/examples/send_xlm.ts
+```
+
+### `invoke_escrow.ts` — soroban_invoke
+
+Calls `get_state` on a deployed escrow contract (simulate-only, no broadcast). Pass the contract address via `CONTRACT_ID`:
+
+```bash
+CONTRACT_ID=C... npx ts-node scripts/examples/invoke_escrow.ts
+```
+
+### `respond_x402.ts` — x402_respond
+
+Responds to a sample x402 payment challenge and prints the resulting `X402PaymentProof`.
+
+```bash
+npx ts-node scripts/examples/respond_x402.ts
+```
+
+---
+
+## E2E Tests
+
+End-to-end tests run against the live Stellar testnet (not mocked). They require network access to Friendbot and Soroban RPC.
+
+```bash
+npm run test:e2e
+```
+
+The E2E suite is excluded from the default `npm run test` to keep CI fast. Run it separately before releases or after SDK upgrades.
+
+---
+
 ## License
 
 Released under the [MIT License](LICENSE).
