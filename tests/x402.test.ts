@@ -254,4 +254,20 @@ describe("X402PaymentTool", () => {
       await expect(tool.respond(VALID_CHALLENGE)).rejects.toThrow(/no_trust/);
     });
   });
+
+  // ── Snapshot tests for X402PaymentProof shape ──────────────────────────────
+
+  describe("X402PaymentProof snapshot", () => {
+    it("X402PaymentProof has expected shape and fields", async () => {
+      const proof = await tool.respond(VALID_CHALLENGE);
+
+      expect(proof).toMatchSnapshot();
+      expect(proof).toHaveProperty("protocol", "x402");
+      expect(proof).toHaveProperty("network");
+      expect(proof).toHaveProperty("txHash");
+      expect(proof).toHaveProperty("nonce");
+      expect(proof).toHaveProperty("payer");
+      expect(proof).toHaveProperty("signedAt");
+    });
+  });
 });

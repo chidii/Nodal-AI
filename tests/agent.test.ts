@@ -162,3 +162,49 @@ describe("PayFiAgent — mainnet spending cap", () => {
     expect(result.success).toBe(true);
   });
 });
+
+describe("AgentResult snapshot", () => {
+  let agent: PayFiAgent;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    agent = new PayFiAgent();
+  });
+
+  it("AgentResult has expected shape on success", async () => {
+    const result = await agent.run({
+      type: "stellar_payment",
+      payload: {
+        destination: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
+        amount: "100",
+        assetCode: "USDC",
+        assetIssuer: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+      },
+    });
+
+    expect(result).toMatchSnapshot();
+    expect(result).toHaveProperty("success", true);
+    expect(result).toHaveProperty("taskType", "stellar_payment");
+    expect(result).toHaveProperty("data");
+  });
+
+  it("AgentResult has expected shape on failure", async () => {
+    const mockInstance = vi.mocked(StellarPaymentTool).mock.results[0].value;
+    mockInstance.execute.mockRejectedValueOnce(new Error("Test error"));
+
+    const result = await agent.run({
+      type: "stellar_payment",
+      payload: {
+        destination: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
+        amount: "100",
+        assetCode: "USDC",
+        assetIssuer: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+      },
+    });
+
+    expect(result).toMatchSnapshot();
+    expect(result).toHaveProperty("success", false);
+    expect(result).toHaveProperty("taskType", "stellar_payment");
+    expect(result).toHaveProperty("error");
+  });
+});
