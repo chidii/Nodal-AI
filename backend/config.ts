@@ -235,7 +235,7 @@ export interface AgentConfig {
 
 // ─── Loader ───────────────────────────────────────────────────────────────────
 
-function formatValidationErrors(errors: z.ZodError): string {
+export function formatValidationErrors(errors: z.ZodError): string {
   return errors.issues
     .map((issue) => {
       const field = issue.path.join(".") || "unknown";

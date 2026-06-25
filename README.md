@@ -185,6 +185,86 @@ _Built for the Stellar ecosystem by [Dami24-hub]._
 
 ````
 
+## API Reference
+
+### PayFiAgent
+
+The primary integration surface for developers. Dispatch tasks to the agent via `run()` or `runSequence()`.
+
+| Method | Input | Output | Description |
+|--------|-------|--------|-------------|
+| `run(task)` | `AgentTask` | `Promise<AgentResult>` | Execute a single task. Routes to the appropriate tool based on task type. |
+| `runSequence(tasks)` | `AgentTask[]` | `Promise<AgentResult[]>` | Execute an ordered list of tasks sequentially, stopping on first failure. |
+| `destroy()` | — | `void` | Detach all event listeners and release resources. Call when decommissioning the agent. |
+
+### TaskType
+
+```typescript
+type TaskType = "stellar_payment" | "soroban_invoke" | "x402_respond"
+```
+
+| Value | Description |
+|-------|-------------|
+| `stellar_payment` | Native XLM or custom asset payment via Horizon |
+| `soroban_invoke` | Smart contract invocation via Soroban RPC with simulation |
+| `x402_respond` | Respond to an x402 payment challenge with spending limit guard |
+
+### AgentTask
+
+```typescript
+interface AgentTask {
+  type: TaskType;
+  payload: unknown;
+}
+```
+
+Input wrapper for task dispatch. The `payload` shape depends on `type`:
+- `stellar_payment`: `{ destination: string; amount: string; assetCode?: string; assetIssuer?: string; memo?: string }`
+- `soroban_invoke`: `{ contractId: string; method: string; args: SorobanValue[]; ... }`
+- `x402_respond`: `{ resource: string; amount: string; assetCode?: string; assetIssuer?: string; payTo: string; nonce: string; expiresAt: string }`
+
+### AgentResult
+
+```typescript
+interface AgentResult {
+  success: boolean;
+  taskType: TaskType;
+  data?: unknown;
+  error?: string;
+}
+```
+
+Task execution result. On success, `data` contains the tool's output. On failure, `error` is populated.
+
+### Usage Example
+
+```typescript
+import { PayFiAgent } from "./backend/agent";
+
+const agent = new PayFiAgent();
+
+// Execute a Stellar payment
+const result = await agent.run({
+  type: "stellar_payment",
+  payload: {
+    destination: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
+    amount: "100",
+    assetCode: "USDC",
+    assetIssuer: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+  },
+});
+
+if (result.success) {
+  console.log("Payment settled:", result.data);
+} else {
+  console.error("Payment failed:", result.error);
+}
+
+// Clean up
+agent.destroy();
+```
+
+---
 
 ## x402 Payment Flow
 
