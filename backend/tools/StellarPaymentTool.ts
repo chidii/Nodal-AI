@@ -95,6 +95,11 @@ export class StellarPaymentTool {
     // 1. Validate input
     const input = PaymentInputSchema.parse(rawInput);
 
+    // Self-payment guard
+    if (input.destination === this.keypair.publicKey()) {
+      throw new Error("Payment destination cannot be the agent's own address");
+    }
+
     // 2. Resolve asset
     if (input.assetCode !== "XLM" && !input.assetIssuer) {
       throw new Error(

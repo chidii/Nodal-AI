@@ -117,6 +117,12 @@ describe("StellarPaymentTool", () => {
       ).rejects.toThrow(/Amount must be/);
     });
 
+    it("rejects self-payment (destination === agent public key)", async () => {
+      await expect(
+        tool.execute({ destination: tool.publicKey, amount: "1", assetCode: "XLM" })
+      ).rejects.toThrow("Payment destination cannot be the agent's own address");
+    });
+
     it("rejects a non-XLM asset when issuer is missing", async () => {
       await expect(
         tool.execute({
